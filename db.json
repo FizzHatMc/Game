@@ -1,0 +1,192 @@
+{
+  "5caa45": {
+    "game": "spin-the-bottle",
+    "players": [
+      {
+        "name": "Marcel"
+      },
+      {
+        "name": "Marcelhandy"
+      }
+    ],
+    "host": "Marcel",
+    "lastResult": null
+  },
+  "c63e71": {
+    "game": "spin-the-bottle",
+    "players": [
+      {
+        "name": "Marcel"
+      },
+      {
+        "name": "Marcelhandy"
+      }
+    ],
+    "host": "Marcel",
+    "lastResult": null
+  },
+  "d9f593": {
+    "game": "spin-the-bottle",
+    "players": [
+      {
+        "name": "Marcel"
+      }
+    ],
+    "host": "Marcel",
+    "lastResult": "The bottle points to... Marcelhandy!"
+  },
+  "2d8602": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "setup",
+    "settings": {
+      "imposterCount": 1,
+      "timer": 60
+    },
+    "votes": {}
+  },
+  "8d3a3f": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "setup",
+    "settings": {
+      "imposterCount": 1,
+      "timer": 60
+    },
+    "votes": {}
+  },
+  "4e42fb": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "setup",
+    "settings": {
+      "imposterCount": 1,
+      "timer": 60
+    },
+    "votes": {}
+  },
+  "0c1cbe": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "setup",
+    "settings": {
+      "imposterCount": 1,
+      "timer": 60
+    },
+    "votes": {}
+  },
+  "ef390f": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "setup",
+    "settings": {
+      "imposterCount": 1,
+      "timer": 60
+    },
+    "votes": {}
+  },
+  "0f8c3c": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "setup",
+    "settings": {
+      "imposterCount": 1,
+      "timer": 60
+    },
+    "votes": {}
+  },
+  "97b2c9": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "setup",
+    "settings": {
+      "imposterCount": 1,
+      "timer": 60
+    },
+    "votes": {}
+  },
+  "9841a3": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "setup",
+    "settings": {
+      "imposterCount": 1,
+      "timer": 60
+    },
+    "votes": {}
+  },
+  "a60aac": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel",
+        "role": "Imposter",
+        "word": "Cheese"
+      },
+      {
+        "name": "Marcelhandy",
+        "role": "Normie",
+        "word": "Pizza"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "ended",
+    "settings": {
+      "imposterCount": "1",
+      "timer": "30"
+    },
+    "votes": {
+      "Marcelhandy": [
+        "Marcelhandy"
+      ],
+      "Marcel": [
+        "Marcelhandy"
+      ]
+    },
+    "timerEndsAt": 1752777064169,
+    "voteResults": {
+      "Marcel": 0,
+      "Marcelhandy": 2
+    }
+  }
+}

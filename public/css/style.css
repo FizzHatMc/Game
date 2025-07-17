@@ -1,0 +1,363 @@
+/* public/css/style.css */
+
+/* --- Variables and Base Styles --- */
+:root {
+    --font-family: 'Poppins', sans-serif;
+
+    /* Light Mode Colors */
+    --bg-color-light: #f4f7f9;
+    --surface-color-light: #ffffff;
+    --text-color-light: #1a202c;
+    --subtle-text-color-light: #718096;
+    --primary-color-light: #3498db;
+    --primary-hover-light: #2980b9;
+    --border-color-light: #e2e8f0;
+    --imposter-red: #e74c3c;
+    --normie-green: #2ecc71;
+
+
+    /* Dark Mode Colors */
+    --bg-color-dark: #1a202c;
+    --surface-color-dark: #2d3748;
+    --text-color-dark: #e2e8f0;
+    --subtle-text-color-dark: #a0aec0;
+    --primary-color-dark: #4299e1;
+    --primary-hover-dark: #2b6cb0;
+    --border-color-dark: #4a5568;
+}
+
+body {
+    font-family: var(--font-family);
+    margin: 0;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+body.light-mode {
+    background-color: var(--bg-color-light);
+    color: var(--text-color-light);
+}
+
+body.dark-mode {
+    background-color: var(--bg-color-dark);
+    color: var(--text-color-dark);
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+h1, h2, h3, h4 {
+    font-weight: 600;
+}
+
+p {
+    line-height: 1.6;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid;
+}
+body.light-mode hr { border-color: var(--border-color-light); }
+body.dark-mode hr { border-color: var(--border-color-dark); }
+
+
+.hidden {
+    display: none !important;
+}
+
+/* --- Header --- */
+header {
+    padding: 20px 0;
+    border-bottom: 1px solid;
+    margin-bottom: 40px;
+}
+
+body.light-mode header { border-color: var(--border-color-light); }
+body.dark-mode header { border-color: var(--border-color-dark); }
+
+header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+}
+
+/* --- Theme Switcher --- */
+.theme-switcher {
+    position: relative;
+}
+.theme-toggle-checkbox {
+    display: none;
+}
+.theme-toggle-label {
+    display: block;
+    width: 50px;
+    height: 26px;
+    background-color: var(--surface-color-dark);
+    border-radius: 50px;
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.theme-toggle-label::after {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    background: white;
+    transition: transform 0.3s;
+}
+.theme-toggle-checkbox:checked + .theme-toggle-label {
+    background-color: var(--surface-color-light);
+}
+.theme-toggle-checkbox:checked + .theme-toggle-label::after {
+    transform: translateX(24px);
+}
+.theme-switcher svg {
+    position: absolute;
+    top: 3px;
+    z-index: 10;
+    transition: opacity 0.3s, transform 0.3s;
+}
+.theme-switcher .sun {
+    left: 4px;
+    stroke: #f39c12;
+    opacity: 0;
+}
+.theme-switcher .moon {
+    right: 4px;
+    stroke: #f1c40f;
+}
+.theme-toggle-checkbox:checked + .theme-toggle-label .sun {
+    opacity: 1;
+    transform: rotate(15deg);
+}
+.theme-toggle-checkbox:checked + .theme-toggle-label .moon {
+    opacity: 0;
+    transform: rotate(15deg);
+}
+body.light-mode .theme-toggle-label { background-color: var(--primary-color-light); }
+body.dark-mode .theme-toggle-label { background-color: var(--surface-color-dark); }
+
+
+/* --- Cards and Sections --- */
+.card {
+    padding: 30px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+body.light-mode .card {
+    background-color: var(--surface-color-light);
+    border-color: var(--border-color-light);
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+}
+
+body.dark-mode .card {
+    background-color: var(--surface-color-dark);
+    border-color: var(--border-color-dark);
+}
+
+/* --- Game List --- */
+.game-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+}
+.game-card {
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+.game-card:hover {
+    transform: translateY(-5px);
+}
+body.light-mode .game-card:hover { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); }
+body.dark-mode .game-card:hover { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -2px rgba(0,0,0,0.2); }
+
+.game-card h3 {
+    margin-top: 0;
+}
+body.light-mode .game-card p { color: var(--subtle-text-color-light); }
+body.dark-mode .game-card p { color: var(--subtle-text-color-dark); }
+
+
+/* --- Forms and Buttons --- */
+.input-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+input[type="text"], input[type="number"] {
+    flex-grow: 1;
+    padding: 12px 15px;
+    border-radius: 8px;
+    border: 1px solid;
+    font-size: 1rem;
+    transition: border-color 0.3s, background-color 0.3s;
+}
+body.light-mode input[type="text"], body.light-mode input[type="number"] {
+    background-color: var(--bg-color-light);
+    border-color: var(--border-color-light);
+    color: var(--text-color-light);
+}
+body.dark-mode input[type="text"], body.dark-mode input[type="number"] {
+    background-color: #1a202c;
+    border-color: var(--border-color-dark);
+    color: var(--text-color-dark);
+}
+input[type="text"]:focus, input[type="number"]:focus {
+    outline: none;
+    border-color: var(--primary-color-light);
+}
+body.dark-mode input[type="text"]:focus, body.dark-mode input[type="number"]:focus {
+    border-color: var(--primary-color-dark);
+}
+
+button {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, opacity 0.2s;
+}
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+body.light-mode button {
+    background-color: var(--primary-color-light);
+    color: white;
+}
+body.dark-mode button {
+    background-color: var(--primary-color-dark);
+    color: var(--bg-color-dark);
+}
+body.light-mode button:hover:not(:disabled) { background-color: var(--primary-hover-light); }
+body.dark-mode button:hover:not(:disabled) { background-color: var(--primary-hover-dark); }
+
+button.secondary {
+    background-color: transparent;
+    border: 2px solid;
+}
+body.light-mode button.secondary {
+    color: var(--primary-color-light);
+    border-color: var(--primary-color-light);
+    background-color: transparent;
+}
+body.dark-mode button.secondary {
+    color: var(--primary-color-dark);
+    border-color: var(--primary-color-dark);
+    background-color: transparent;
+}
+body.light-mode button.secondary:hover:not(:disabled) { background-color: rgba(52, 152, 219, 0.1); }
+body.dark-mode button.secondary:hover:not(:disabled) { background-color: rgba(66, 153, 225, 0.2); }
+
+
+.message {
+    margin-top: 15px;
+    font-size: 0.9rem;
+    min-height: 1.2em;
+}
+.message.success { color: #2ecc71; }
+.message.error { color: #e74c3c; }
+
+
+/* --- Game Interface Specific Styles --- */
+#game-interface h2 {
+    border-bottom: 1px solid;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+body.light-mode #game-interface h2 { border-color: var(--border-color-light); }
+body.dark-mode #game-interface h2 { border-color: var(--border-color-dark); }
+
+.player-list {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.player-tag {
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+body.light-mode .player-tag { background-color: #ecf0f1; color: #2c3e50; }
+body.dark-mode .player-tag { background-color: #4a5568; color: #e2e8f0; }
+
+.game-result {
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 40px 20px;
+    margin: 20px 0;
+    border-radius: 8px;
+    min-height: 2em;
+}
+body.light-mode .game-result { background-color: #ecf0f1; }
+body.dark-mode .game-result { background-color: #1a202c; }
+
+/* --- Imposter Game Styles --- */
+.imposter-settings {
+    margin: 20px 0;
+    padding: 20px;
+    border-radius: 8px;
+}
+body.light-mode .imposter-settings { background-color: #ecf0f1; }
+body.dark-mode .imposter-settings { background-color: #1a202c; }
+
+.imposter-settings label {
+    display: block;
+    margin-bottom: 5px;
+    margin-top: 10px;
+}
+.imposter-settings input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.imposter-reveal {
+    text-align: center;
+    padding: 20px;
+}
+.imposter-reveal .imposter { color: var(--imposter-red); }
+.imposter-reveal .normie { color: var(--normie-green); }
+
+.imposter-timer {
+    text-align: center;
+    padding: 20px;
+}
+#timer-display {
+    font-size: 3rem;
+    font-weight: bold;
+    letter-spacing: 4px;
+}
+
+.player-vote-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 20px;
+}
+.player-vote-list button {
+    width: 100%;
+}
