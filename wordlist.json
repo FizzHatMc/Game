@@ -1,0 +1,42 @@
+[
+  {
+    "normie": "Beach",
+    "imposters": ["Sand", "Ocean", "Sun"]
+  },
+  {
+    "normie": "Doctor",
+    "imposters": ["Hospital", "Nurse", "Medicine"]
+  },
+  {
+    "normie": "Teacher",
+    "imposters": ["School", "Student", "Classroom"]
+  },
+  {
+    "normie": "Moon",
+    "imposters": ["Space", "Stars", "Night"]
+  },
+  {
+    "normie": "Cat",
+    "imposters": ["Dog", "Kitten", "Meow"]
+  },
+  {
+    "normie": "Pizza",
+    "imposters": ["Cheese", "Oven", "Dough"]
+  },
+  {
+    "normie": "Car",
+    "imposters": ["Road", "Tire", "Engine"]
+  },
+  {
+    "normie": "Book",
+    "imposters": ["Page", "Library", "Read"]
+  },
+  {
+    "normie": "Rain",
+    "imposters": ["Water", "Cloud", "Umbrella"]
+  },
+  {
+    "normie": "Sleep",
+    "imposters": ["Bed", "Dream", "Pillow"]
+  }
+]

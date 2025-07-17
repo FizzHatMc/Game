@@ -89,6 +89,31 @@ header h1 {
     font-size: 1.8rem;
 }
 
+header nav {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+/* --- Language Selector --- */
+.language-selector select {
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid;
+    font-size: 0.9rem;
+}
+body.light-mode .language-selector select {
+    background-color: var(--surface-color-light);
+    border-color: var(--border-color-light);
+    color: var(--text-color-light);
+}
+body.dark-mode .language-selector select {
+    background-color: var(--surface-color-dark);
+    border-color: var(--border-color-dark);
+    color: var(--text-color-dark);
+}
+
+
 /* --- Theme Switcher --- */
 .theme-switcher {
     position: relative;

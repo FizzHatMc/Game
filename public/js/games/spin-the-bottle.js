@@ -5,18 +5,23 @@ window.SpinTheBottle = (() => {
     let goBackCallback;
     let lobbyId = null;
     let pollInterval = null;
+    let lastRenderedState = {}; // Cache the last state
+
+    // Use the global getTranslation function
+    const t = window.i18n.t.bind(window.i18n);
 
     const render = (state) => {
         if (!container) return;
+        lastRenderedState = state; // Update cache
 
         const html = `
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <button id="back-to-selection" class="secondary">&larr; Back to Games</button>
-                    ${state.lobbyId ? '<button id="leave-lobby-btn" class="secondary" style="border-color: #e74c3c; color: #e74c3c;">Leave Lobby</button>' : ''}
+                    <button id="back-to-selection" class="secondary">${t('backToGames')}</button>
+                    ${state.lobbyId ? `<button id="leave-lobby-btn" class="secondary" style="border-color: #e74c3c; color: #e74c3c;">${t('leaveLobby')}</button>` : ''}
                 </div>
-                <h2>Spin the Bottle</h2>
-                ${!state.lobbyId ? renderLobbyJoin(state.lobbyToJoin) : renderLobby(state)}
+                <h2>${t('spinTheBottle.title')}</h2>
+                ${!state.lobbyId ? renderLobbyJoin() : renderLobby(state)}
             </div>
         `;
         container.innerHTML = html;
@@ -32,38 +37,38 @@ window.SpinTheBottle = (() => {
         }
     };
 
-    const renderLobbyJoin = (lobbyToJoin = '') => `
-        <p>Create a new lobby or enter a code to join one.</p>
+    const renderLobbyJoin = () => `
+        <p>${t('createOrJoin')}</p>
         <div class="input-group">
-            <button id="create-lobby-btn">Create New Lobby</button>
+            <button id="create-lobby-btn">${t('createLobby')}</button>
         </div>
-        <hr style="margin: 20px 0; border-color: var(--border-color-dark);">
+        <hr style="margin: 20px 0;">
         <div class="input-group">
-            <input type="text" id="join-lobby-input" placeholder="Enter Lobby Code" value="${lobbyToJoin}">
-            <button id="join-lobby-btn">Join Lobby</button>
+            <input type="text" id="join-lobby-input" placeholder="${t('enterLobbyCode')}">
+            <button id="join-lobby-btn">${t('joinLobby')}</button>
         </div>
         <p id="lobby-message" class="message"></p>
     `;
 
     const renderLobby = (state) => `
-        <p>Lobby Code: <strong style="font-size: 1.2em; letter-spacing: 2px;">${state.lobbyId}</strong></p>
+        <p>${t('spinTheBottle.lobbyCode')}: <strong style="font-size: 1.2em; letter-spacing: 2px;">${state.lobbyId}</strong></p>
         <div style="text-align: center;">
-            <p>Scan with your phone to join!</p>
+            <p>${t('spinTheBottle.shareWithFriends')}</p>
             <div id="qrcode"></div>
         </div>
-        <hr style="margin: 20px 0; border-color: var(--border-color-dark);">
-        <p><strong>Players:</strong></p>
+        <hr style="margin: 20px 0;">
+        <p><strong>${t('spinTheBottle.players')}:</strong></p>
         <ul class="player-list">
-            ${state.players.map(p => `<li class="player-tag">${p.name} ${p.name === state.host ? '👑 (Host)' : ''}</li>`).join('')}
+            ${state.players.map(p => `<li class="player-tag">${p.name} ${p.name === state.host ? `👑 ${t('spinTheBottle.host')}` : ''}</li>`).join('')}
         </ul>
         <div class="game-result" id="game-result-display">
-            ${state.lastResult || 'Waiting for the host to spin...'}
+            ${state.lastResult || t('spinTheBottle.waitingForHost')}
         </div>
         <div class="input-group">
-            <button id="spin-btn" ${state.isHost ? '' : 'disabled'}>Spin the Bottle</button>
+            <button id="spin-btn" ${state.isHost ? '' : 'disabled'}>${t('spinTheBottle.spinTheBottle')}</button>
         </div>
         <p id="game-message" class="message"></p>
-        ${!state.isHost ? '<p>Only the host can start the game.</p>' : ''}
+        ${!state.isHost ? `<p>${t('spinTheBottle.onlyHostSpins')}</p>` : ''}
     `;
 
     const addEventListeners = () => {
@@ -75,8 +80,9 @@ window.SpinTheBottle = (() => {
     };
 
     const handleGoBack = () => {
-        cleanup();
-        if(goBackCallback) goBackCallback();
+        if (lobbyId) handleLeaveLobby();
+        else cleanup();
+        if (goBackCallback) goBackCallback();
     };
 
     const handleLeaveLobby = async () => {
@@ -85,10 +91,10 @@ window.SpinTheBottle = (() => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ lobbyId }),
         });
-        handleGoBack();
+        cleanup();
+        if(goBackCallback) goBackCallback();
     };
 
-    // FIX: This now sends the correct gameType to the server.
     const handleCreateLobby = async () => {
         const response = await fetch('/api/lobby/create', {
             method: 'POST',
@@ -107,8 +113,7 @@ window.SpinTheBottle = (() => {
         const lobbyMsg = document.getElementById('lobby-message');
         const idToJoin = lobbyInput.value.trim();
         if (!idToJoin) {
-            lobbyMsg.textContent = 'Please enter a lobby code.';
-            lobbyMsg.className = 'message error';
+            lobbyMsg.textContent = t('enterLobbyCode');
             return;
         }
 
@@ -137,7 +142,6 @@ window.SpinTheBottle = (() => {
         const data = await response.json();
         if (!data.success) {
             gameMsg.textContent = data.message;
-            gameMsg.className = 'message error';
         }
     };
 
@@ -152,14 +156,11 @@ window.SpinTheBottle = (() => {
 
         try {
             const response = await fetch(`/api/lobby/${lobbyId}`);
-            if (response.status === 404) {
+            if (!response.ok) {
                 cleanup();
-                container.innerHTML = `
-                    <div class="card">
-                        <p class="message error">Lobby not found. The host may have left.</p>
-                        <button id="back-to-selection" class="secondary">Back to Games</button>
-                    </div>`;
-                addEventListeners();
+                const card = document.querySelector('#game-interface .card');
+                if(card) card.innerHTML = `<p class="message error">${t('lobbyNotFound')}</p><button id="back-to-selection" class="secondary">${t('backToGames')}</button>`;
+                document.getElementById('back-to-selection')?.addEventListener('click', handleGoBack);
                 return;
             }
             const data = await response.json();
@@ -178,26 +179,22 @@ window.SpinTheBottle = (() => {
     };
 
     const cleanup = () => {
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-        }
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = null;
         lobbyId = null;
         container.innerHTML = '';
     };
 
-    const init = (gameContainer, backCallback, lobbyToJoin = null) => {
+    const init = (gameContainer, backCallback) => {
         container = gameContainer;
         goBackCallback = backCallback;
-        render({ lobbyId: null, lobbyToJoin: lobbyToJoin });
-
-        if (lobbyToJoin) {
-            handleJoinLobby();
-        }
+        render({ lobbyId: null });
     };
 
-    return {
-        init,
-        cleanup
-    };
+    // NEW: Function to re-render the component with the current language.
+    const refresh = () => {
+        if(lastRenderedState) render(lastRenderedState);
+    }
+
+    return { init, cleanup, refresh };
 })();

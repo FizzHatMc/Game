@@ -1,8 +1,44 @@
 // public/js/main.js
 
-document.addEventListener('DOMContentLoaded', () => {
+// NEW: Define a global object to handle all translation logic.
+// This makes it robust and accessible to all game scripts.
+window.i18n = {
+    translations: {},
+    currentLang: 'en',
+    // Fetches the translation file and sets the current language.
+    init: async function() {
+        this.currentLang = localStorage.getItem('language') || 'en';
+        try {
+            // FIX: Use an absolute path to be more robust.
+            const response = await fetch('/js/translations.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            this.translations = await response.json();
+        } catch (error) {
+            console.error("Could not load translations:", error);
+        }
+    },
+    // The main translation function.
+    t: function(key, replacements = {}) {
+        const lang = this.translations[this.currentLang];
+        if (!lang) return key; // Fallback to key if language not found
+        let text = key.split('.').reduce((obj, i) => obj && obj[i], lang) || key;
+        for (const placeholder in replacements) {
+            text = text.replace(`{${placeholder}}`, replacements[placeholder]);
+        }
+        return text;
+    }
+};
+
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // --- State ---
+    let currentGame = null;
+
     // --- DOM Elements ---
     const themeToggle = document.getElementById('theme-toggle');
+    const langSwitcher = document.getElementById('language-switcher');
     const usernameSection = document.getElementById('username-section');
     const usernameInput = document.getElementById('username-input');
     const setUsernameBtn = document.getElementById('set-username-btn');
@@ -11,58 +47,48 @@ document.addEventListener('DOMContentLoaded', () => {
     const gameListContainer = document.getElementById('game-list');
     const gameInterfaceSection = document.getElementById('game-interface');
 
-    // --- State ---
-    let currentGame = null;
-
     // --- Game Definitions ---
     const games = [
-        {
-            id: 'spin-the-bottle',
-            name: 'Spin the Bottle',
-            description: 'A classic party game. The host spins to pick a player.',
-        },
-        {
-            id: 'imposter',
-            name: 'Imposter',
-            description: 'Find the imposter who has a slightly different word.',
-        }
+        // FIX: Corrected typo in description key.
+        { id: 'spin-the-bottle', nameKey: 'spinTheBottle.title', descKey: 'spinTheBottle.description' },
+        { id: 'imposter', nameKey: 'imposter.title', descKey: 'imposter.description' }
     ];
 
-    // --- Functions ---
+    // --- I18n Functions ---
+    const applyTranslations = () => {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            el.innerHTML = i18n.t(el.getAttribute('data-i18n'));
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            el.placeholder = i18n.t(el.getAttribute('data-i18n-placeholder'));
+        });
+        document.title = i18n.t('siteTitle');
+        populateGameList(); // Repopulate list with correct language
+    };
 
-    const applyTheme = (isDarkMode) => {
-        if (isDarkMode) {
-            document.body.classList.remove('light-mode');
-            document.body.classList.add('dark-mode');
-            themeToggle.checked = false;
-        } else {
-            document.body.classList.remove('dark-mode');
-            document.body.classList.add('light-mode');
-            themeToggle.checked = true;
+    const handleLanguageChange = () => {
+        i18n.currentLang = langSwitcher.value;
+        localStorage.setItem('language', i18n.currentLang);
+        applyTranslations();
+        // If a game is active, re-render it with the new language
+        if (currentGame && currentGame.refresh) {
+            currentGame.refresh();
         }
+    };
+
+    // --- General Functions ---
+    const applyTheme = (isDarkMode) => {
+        document.body.classList.toggle('light-mode', !isDarkMode);
+        document.body.classList.toggle('dark-mode', isDarkMode);
+        themeToggle.checked = !isDarkMode;
         localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
     };
 
-    const toggleTheme = () => {
-        const isDarkMode = document.body.classList.contains('dark-mode');
-        applyTheme(!isDarkMode);
-    };
-
-    const checkForJoinLink = () => {
-        const hash = window.location.hash;
-        if (hash.startsWith('#join=')) {
-            const lobbyId = hash.substring(6);
-            sessionStorage.setItem('lobbyToJoin', lobbyId);
-            history.pushState("", document.title, window.location.pathname + window.location.search);
-        }
-    };
+    const toggleTheme = () => applyTheme(!document.body.classList.contains('light-mode'));
 
     const checkLoginState = () => {
-        if (localStorage.getItem('username_set')) {
-            showGameSelection();
-        } else {
-            showUsernameSetup();
-        }
+        if (localStorage.getItem('username_set')) showGameSelection();
+        else showUsernameSetup();
     };
 
     const showUsernameSetup = () => {
@@ -76,15 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
         gameSelectionSection.classList.remove('hidden');
         gameInterfaceSection.classList.add('hidden');
         populateGameList();
-
-        const lobbyToJoin = sessionStorage.getItem('lobbyToJoin');
-        if (lobbyToJoin) {
-            sessionStorage.removeItem('lobbyToJoin');
-            // We don't know which game it is, so we can't auto-join.
-            // For now, we just show the selection. A more advanced implementation
-            // could have the server tell us the game type for a given lobby ID.
-            alert(`To join lobby ${lobbyToJoin}, please select the correct game.`);
-        }
     };
 
     const showGameInterface = () => {
@@ -96,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleSetUsername = async () => {
         const username = usernameInput.value.trim();
         if (username.length < 3) {
-            usernameMessage.textContent = 'Username must be at least 3 characters.';
+            usernameMessage.textContent = i18n.t('usernameError');
             usernameMessage.className = 'message error';
             return;
         }
@@ -110,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (data.success) {
-                usernameMessage.textContent = data.message;
+                usernameMessage.textContent = i18n.t('usernameSuccess');
                 usernameMessage.className = 'message success';
                 localStorage.setItem('username_set', 'true');
                 setTimeout(showGameSelection, 1000);
@@ -121,7 +138,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             usernameMessage.textContent = 'An error occurred. Please try again.';
             usernameMessage.className = 'message error';
-            console.error('Error setting username:', error);
         }
     };
 
@@ -132,8 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'card game-card';
             card.dataset.gameId = game.id;
             card.innerHTML = `
-                <h3>${game.name}</h3>
-                <p>${game.description}</p>
+                <h3>${i18n.t(game.nameKey)}</h3>
+                <p>${i18n.t(game.descKey)}</p>
             `;
             card.addEventListener('click', () => loadGame(game.id));
             gameListContainer.appendChild(card);
@@ -141,13 +157,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const loadGame = (gameId) => {
-        if (currentGame && currentGame.cleanup) {
-            currentGame.cleanup();
-        }
+        if (currentGame && currentGame.cleanup) currentGame.cleanup();
         gameInterfaceSection.innerHTML = '';
 
         const script = document.createElement('script');
-        script.src = `js/games/${gameId}.js`;
+        script.src = `/js/games/${gameId}.js`;
         script.onload = () => {
             const gameObjectName = gameId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('').replace('-', '');
             if (window[gameObjectName] && typeof window[gameObjectName].init === 'function') {
@@ -155,31 +169,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentGame.init(gameInterfaceSection, showGameSelection);
                 showGameInterface();
             } else {
-                console.error(`Failed to initialize game: ${gameId}. 'init' function not found on window.${gameObjectName}`);
-                gameInterfaceSection.innerHTML = `<p class="message error">Error loading game. Please try again.</p>`;
+                gameInterfaceSection.innerHTML = `<p class="message error">Error loading game.</p>`;
                 showGameSelection();
             }
         };
         script.onerror = () => {
-            console.error(`Failed to load script for game: ${gameId}`);
             gameInterfaceSection.innerHTML = `<p class="message error">Could not load game files.</p>`;
         };
         document.body.appendChild(script);
     };
 
-
-    // --- Event Listeners ---
-    themeToggle.addEventListener('change', toggleTheme);
-    setUsernameBtn.addEventListener('click', handleSetUsername);
-    usernameInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            handleSetUsername();
-        }
-    });
-
     // --- Initial Setup ---
-    checkForJoinLink();
+    await window.i18n.init();
+
+    langSwitcher.value = i18n.currentLang;
+    applyTranslations();
+
     const savedTheme = localStorage.getItem('theme') || 'dark';
     applyTheme(savedTheme === 'dark');
     checkLoginState();
+
+    // --- Event Listeners ---
+    themeToggle.addEventListener('change', toggleTheme);
+    langSwitcher.addEventListener('change', handleLanguageChange);
+    setUsernameBtn.addEventListener('click', handleSetUsername);
+    usernameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSetUsername();
+    });
 });

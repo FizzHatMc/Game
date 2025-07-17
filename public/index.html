@@ -16,8 +16,15 @@
 <!-- Header -->
 <header>
     <div class="container">
-        <h1>Multi Game Hub</h1>
+        <h1 data-i18n="siteTitle">Multi Game Hub</h1>
         <nav>
+            <!-- NEW: Language Selector -->
+            <div class="language-selector">
+                <select id="language-switcher">
+                    <option value="en">English</option>
+                    <option value="de">Deutsch</option>
+                </select>
+            </div>
             <div class="theme-switcher">
                 <input type="checkbox" id="theme-toggle" class="theme-toggle-checkbox">
                 <label for="theme-toggle" class="theme-toggle-label">
@@ -25,7 +32,6 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
                 </label>
             </div>
-            <!-- Burger menu can be added here -->
         </nav>
     </div>
 </header>
@@ -33,18 +39,18 @@
 <main class="container">
     <!-- Username Setup -->
     <section id="username-section" class="card">
-        <h2>Welcome!</h2>
-        <p>Please set your username to join or create games.</p>
+        <h2 data-i18n="welcome">Welcome!</h2>
+        <p data-i18n="setUsernamePrompt">Please set your username to join or create games.</p>
         <div class="input-group">
-            <input type="text" id="username-input" placeholder="Enter your name">
-            <button id="set-username-btn">Save Name</button>
+            <input type="text" id="username-input" data-i18n-placeholder="enterYourName" placeholder="Enter your name">
+            <button id="set-username-btn" data-i18n="saveName">Save Name</button>
         </div>
         <p id="username-message" class="message"></p>
     </section>
 
     <!-- Game Selection -->
     <section id="game-selection" class="hidden">
-        <h2>Choose a Game</h2>
+        <h2 data-i18n="chooseAGame">Choose a Game</h2>
         <div id="game-list" class="game-list">
             <!-- Game cards will be injected here by JavaScript -->
         </div>

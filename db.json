@@ -155,16 +155,11 @@
     },
     "votes": {}
   },
-  "a60aac": {
+  "4b3226": {
     "game": "imposter",
     "players": [
       {
         "name": "Marcel",
-        "role": "Imposter",
-        "word": "Cheese"
-      },
-      {
-        "name": "Marcelhandy",
         "role": "Normie",
         "word": "Pizza"
       }
@@ -173,7 +168,8 @@
     "gameState": "ended",
     "settings": {
       "imposterCount": "1",
-      "timer": "30"
+      "timer": "60",
+      "useSameImposterWord": true
     },
     "votes": {
       "Marcelhandy": [
@@ -183,7 +179,8 @@
         "Marcelhandy"
       ]
     },
-    "timerEndsAt": 1752777064169,
+    "startingPlayer": "Marcel",
+    "timerEndsAt": 1752777908069,
     "voteResults": {
       "Marcel": 0,
       "Marcelhandy": 2

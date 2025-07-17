@@ -10,22 +10,9 @@ const path = require('path');
 const app = express();
 const port = 3000;
 const dbPath = path.join(__dirname, 'db.json');
+const wordlistPath = path.join(__dirname, 'wordlist.json');
 
-// --- Word List for Imposter Game ---
-const imposterWordPairs = [
-    { normie: "Beach", imposter: "Sand" },
-    { normie: "Doctor", imposter: "Hospital" },
-    { normie: "Teacher", imposter: "School" },
-    { normie: "Moon", imposter: "Space" },
-    { normie: "Cat", imposter: "Dog" },
-    { normie: "Pizza", imposter: "Cheese" },
-    { normie: "Car", imposter: "Road" },
-    { normie: "Book", imposter: "Page" },
-    { normie: "Rain", imposter: "Water" },
-    { normie: "Sleep", imposter: "Bed" },
-];
-
-// --- "Database" Functions ---
+// --- "Database" & Wordlist Functions ---
 const readDb = () => {
     try {
         if (fs.existsSync(dbPath)) {
@@ -47,6 +34,18 @@ const writeDb = (data) => {
         console.error("Error writing to database file:", error);
     }
 };
+
+const getWordPairs = async () => {
+    // In the future, you can replace this with a fetch call to your online DB.
+    try {
+        const data = fs.readFileSync(wordlistPath);
+        return JSON.parse(data);
+    } catch (error) {
+        console.error("Error reading wordlist file:", error);
+        return [{ normie: "Error", imposters: ["File", "Missing"] }];
+    }
+};
+
 
 let lobbies = readDb();
 
@@ -86,7 +85,7 @@ app.post('/api/lobby/create', (req, res) => {
     };
 
     if (gameType === 'imposter') {
-        lobbies[lobbyId].settings = { imposterCount: 1, timer: 60 };
+        lobbies[lobbyId].settings = { imposterCount: 1, timer: 60, useSameImposterWord: true };
         lobbies[lobbyId].votes = {};
     }
 
@@ -149,7 +148,6 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
         return res.status(404).json({ success: false, message: 'Lobby not found.' });
     }
 
-    // FIX: Automatically transition game state from discussion to voting if timer has ended.
     if (lobby.game === 'imposter' && lobby.gameState === 'discussion' && Date.now() >= lobby.timerEndsAt) {
         lobby.gameState = 'voting';
         writeDb(lobbies);
@@ -161,7 +159,6 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
     if (lobby.game === 'imposter' && (lobby.gameState === 'discussion' || lobby.gameState === 'ended')) {
         const me = lobby.players.find(p => p.name === username);
         personalLobbyState.me = me;
-        // In ended state, we need to send full player roles for the reveal.
         if (lobby.gameState !== 'ended') {
             personalLobbyState.players = lobby.players.map(p => ({ name: p.name }));
         }
@@ -202,7 +199,7 @@ app.post('/api/game/imposter/settings', (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/game/imposter/start', (req, res) => {
+app.post('/api/game/imposter/start', async (req, res) => {
     const { lobbyId, settings } = req.body;
     const lobby = lobbies[lobbyId];
     const username = req.cookies.username;
@@ -210,20 +207,21 @@ app.post('/api/game/imposter/start', (req, res) => {
     if (!lobby || lobby.host !== username) {
         return res.status(403).json({ success: false, message: 'Only the host can start the game.' });
     }
-    // FIX: Improved error message for invalid player/imposter counts.
     if (lobby.players.length <= settings.imposterCount) {
         return res.status(400).json({ success: false, message: 'You must have at least one Normie. Please reduce the number of imposters.' });
     }
 
     lobby.settings = settings;
-    lobby.votes = {}; // Reset votes
+    lobby.votes = {};
 
     let playersToAssign = [...lobby.players];
+    const imposters = [];
     for (let i = 0; i < settings.imposterCount; i++) {
         const randomIndex = Math.floor(Math.random() * playersToAssign.length);
         const imposterName = playersToAssign[randomIndex].name;
         const playerInLobby = lobby.players.find(p => p.name === imposterName);
         playerInLobby.role = 'Imposter';
+        imposters.push(playerInLobby);
         playersToAssign.splice(randomIndex, 1);
     }
     playersToAssign.forEach(player => {
@@ -231,13 +229,30 @@ app.post('/api/game/imposter/start', (req, res) => {
         playerInLobby.role = 'Normie';
     });
 
-    const wordPair = imposterWordPairs[Math.floor(Math.random() * imposterWordPairs.length)];
+    const wordPairs = await getWordPairs();
+    const wordPair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
+
     lobby.players.forEach(player => {
-        player.word = player.role === 'Imposter' ? wordPair.imposter : wordPair.normie;
+        if (player.role === 'Normie') {
+            player.word = wordPair.normie;
+        }
     });
 
+    if (settings.useSameImposterWord) {
+        const imposterWord = wordPair.imposters[Math.floor(Math.random() * wordPair.imposters.length)];
+        imposters.forEach(imposter => imposter.word = imposterWord);
+    } else {
+        imposters.forEach(imposter => {
+            imposter.word = wordPair.imposters[Math.floor(Math.random() * wordPair.imposters.length)];
+        });
+    }
+
+    // NEW: Randomly select a starting player.
+    const startingPlayerIndex = Math.floor(Math.random() * lobby.players.length);
+    lobby.startingPlayer = lobby.players[startingPlayerIndex].name;
+
     lobby.gameState = 'discussion';
-    lobby.timerEndsAt = Date.now() + (settings.timer * 1000);
+    lobby.timerEndsAt = Date.now() + (Number(settings.timer) * 1000);
 
     writeDb(lobbies);
     res.json({ success: true });
@@ -252,7 +267,6 @@ app.post('/api/game/imposter/vote', (req, res) => {
         return res.status(400).json({ success: false, message: 'Cannot vote at this time.' });
     }
 
-    // FIX: Handle multiple votes per player
     if (!lobby.votes[username]) {
         lobby.votes[username] = [];
     }
@@ -260,7 +274,6 @@ app.post('/api/game/imposter/vote', (req, res) => {
         lobby.votes[username].push(voteFor);
     }
 
-    // Check if voting is complete
     let totalVotes = 0;
     for (const user in lobby.votes) {
         totalVotes += lobby.votes[user].length;
@@ -269,7 +282,6 @@ app.post('/api/game/imposter/vote', (req, res) => {
     if (totalVotes >= lobby.players.length * lobby.settings.imposterCount) {
         lobby.gameState = 'ended';
 
-        // Tally votes
         const voteCounts = {};
         lobby.players.forEach(p => voteCounts[p.name] = 0);
         for (const voter in lobby.votes) {
