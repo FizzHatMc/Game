@@ -185,5 +185,41 @@
       "Marcel": 0,
       "Marcelhandy": 2
     }
+  },
+  "c93671": {
+    "game": "imposter",
+    "players": [
+      {
+        "name": "Marcel",
+        "role": "Imposter",
+        "word": "Page"
+      },
+      {
+        "name": "Marcelhandy",
+        "role": "Normie",
+        "word": "Book"
+      }
+    ],
+    "host": "Marcel",
+    "gameState": "ended",
+    "settings": {
+      "imposterCount": "1",
+      "timer": "60",
+      "useSameImposterWord": true
+    },
+    "votes": {
+      "Marcel": [
+        "Marcelhandy"
+      ],
+      "Marcelhandy": [
+        "Marcelhandy"
+      ]
+    },
+    "startingPlayer": "Marcelhandy",
+    "timerEndsAt": 1752782617924,
+    "voteResults": {
+      "Marcel": 0,
+      "Marcelhandy": 2
+    }
   }
 }

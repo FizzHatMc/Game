@@ -6,11 +6,21 @@ const cookieParser = require('cookie-parser');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+const mysql = require('mysql'); // NEW: MySQL dependency
 
 const app = express();
 const port = 3000;
 const dbPath = path.join(__dirname, 'db.json');
-const wordlistPath = path.join(__dirname, 'wordlist.json');
+
+// --- NEW: Database Connection ---
+const dbConnection = mysql.createPool({
+    connectionLimit: 10,
+    host: '192.168.178.166',
+    user: 'remote',
+    password: '040505', // <-- IMPORTANT: Add your database password here
+    database: 'my_app_db' // <-- IMPORTANT: Add your database name here
+});
+
 
 // --- "Database" & Wordlist Functions ---
 const readDb = () => {
@@ -35,15 +45,37 @@ const writeDb = (data) => {
     }
 };
 
-const getWordPairs = async () => {
-    // In the future, you can replace this with a fetch call to your online DB.
-    try {
-        const data = fs.readFileSync(wordlistPath);
-        return JSON.parse(data);
-    } catch (error) {
-        console.error("Error reading wordlist file:", error);
-        return [{ normie: "Error", imposters: ["File", "Missing"] }];
-    }
+// NEW: This function now fetches words from your MariaDB database.
+const getWordPairs = () => {
+    return new Promise((resolve, reject) => {
+        const sql = `
+            SELECT
+                n.word AS normie,
+                GROUP_CONCAT(i.word ORDER BY i.id SEPARATOR ', ') AS imposters
+            FROM
+                normie_words n
+            JOIN
+                imposter_words i ON n.id = i.normie_id
+            GROUP BY
+                n.id, n.word;
+        `;
+
+        dbConnection.query(sql, (error, results) => {
+            if (error) {
+                console.error("Database query error:", error);
+                // Fallback to a default pair on error
+                return resolve([{ normie: "Database Error", imposters: ["Check", "Connection"] }]);
+            }
+
+            // Process the raw SQL results into the required JSON format.
+            const formattedResults = results.map(row => ({
+                normie: row.normie,
+                imposters: row.imposters.split(', ')
+            }));
+
+            resolve(formattedResults);
+        });
+    });
 };
 
 
@@ -247,7 +279,6 @@ app.post('/api/game/imposter/start', async (req, res) => {
         });
     }
 
-    // NEW: Randomly select a starting player.
     const startingPlayerIndex = Math.floor(Math.random() * lobby.players.length);
     lobby.startingPlayer = lobby.players[startingPlayerIndex].name;
 
