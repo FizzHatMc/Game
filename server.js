@@ -6,13 +6,13 @@ const cookieParser = require('cookie-parser');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql'); // NEW: MySQL dependency
+const mysql = require('mysql');
 
 const app = express();
 const port = 3000;
 const dbPath = path.join(__dirname, 'db.json');
 
-// --- NEW: Database Connection ---
+// --- Database Connection ---
 const dbConnection = mysql.createPool({
     connectionLimit: 10,
     host: '192.168.178.166',
@@ -45,29 +45,33 @@ const writeDb = (data) => {
     }
 };
 
-// NEW: This function now fetches words from your MariaDB database.
-const getWordPairs = () => {
+// UPDATED: This function now fetches words from your new DB schema.
+const getWordPairs = (categoryIds = []) => {
     return new Promise((resolve, reject) => {
-        const sql = `
+        let sql = `
             SELECT
                 n.word AS normie,
                 GROUP_CONCAT(i.word ORDER BY i.id SEPARATOR ', ') AS imposters
             FROM
                 normie_words n
-            JOIN
+                    JOIN
                 imposter_words i ON n.id = i.normie_id
-            GROUP BY
-                n.id, n.word;
         `;
 
-        dbConnection.query(sql, (error, results) => {
+        const params = [];
+        if (categoryIds && categoryIds.length > 0) {
+            sql += ` WHERE n.category_id IN (?)`;
+            params.push(categoryIds);
+        }
+
+        sql += ` GROUP BY n.id, n.word;`;
+
+        dbConnection.query(sql, params, (error, results) => {
             if (error) {
                 console.error("Database query error:", error);
-                // Fallback to a default pair on error
                 return resolve([{ normie: "Database Error", imposters: ["Check", "Connection"] }]);
             }
 
-            // Process the raw SQL results into the required JSON format.
             const formattedResults = results.map(row => ({
                 normie: row.normie,
                 imposters: row.imposters.split(', ')
@@ -117,7 +121,14 @@ app.post('/api/lobby/create', (req, res) => {
     };
 
     if (gameType === 'imposter') {
-        lobbies[lobbyId].settings = { imposterCount: 1, timer: 60, useSameImposterWord: true };
+        lobbies[lobbyId].settings = {
+            imposterCount: 1,
+            imposterCountMode: 'fixed', // 'fixed' or 'random'
+            maxImposterPercentage: 50,
+            timer: 60,
+            useSameImposterWord: true,
+            selectedCategories: []
+        };
         lobbies[lobbyId].votes = {};
     }
 
@@ -201,6 +212,17 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
 
 // --- GAME SPECIFIC ROUTES ---
 
+// NEW: Endpoint to fetch word categories from the database.
+app.get('/api/game/imposter/categories', (req, res) => {
+    dbConnection.query('SELECT id, name FROM categories ORDER BY name', (error, results) => {
+        if (error) {
+            console.error("Error fetching categories:", error);
+            return res.status(500).json({ success: false, message: "Could not fetch categories." });
+        }
+        res.json({ success: true, categories: results });
+    });
+});
+
 app.post('/api/game/spin-the-bottle', (req, res) => {
     const { lobbyId } = req.body;
     const lobby = lobbies[lobbyId];
@@ -239,7 +261,20 @@ app.post('/api/game/imposter/start', async (req, res) => {
     if (!lobby || lobby.host !== username) {
         return res.status(403).json({ success: false, message: 'Only the host can start the game.' });
     }
-    if (lobby.players.length <= settings.imposterCount) {
+
+    // UPDATED: Logic to handle fixed or random imposter counts.
+    let finalImposterCount = settings.imposterCount;
+    if (settings.imposterCountMode === 'random') {
+        const maxImposters = Math.floor(lobby.players.length * (settings.maxImposterPercentage / 100));
+        const minImposters = 1;
+        if (maxImposters < minImposters) {
+            finalImposterCount = minImposters;
+        } else {
+            finalImposterCount = Math.floor(Math.random() * (maxImposters - minImposters + 1)) + minImposters;
+        }
+    }
+
+    if (lobby.players.length <= finalImposterCount) {
         return res.status(400).json({ success: false, message: 'You must have at least one Normie. Please reduce the number of imposters.' });
     }
 
@@ -248,7 +283,7 @@ app.post('/api/game/imposter/start', async (req, res) => {
 
     let playersToAssign = [...lobby.players];
     const imposters = [];
-    for (let i = 0; i < settings.imposterCount; i++) {
+    for (let i = 0; i < finalImposterCount; i++) {
         const randomIndex = Math.floor(Math.random() * playersToAssign.length);
         const imposterName = playersToAssign[randomIndex].name;
         const playerInLobby = lobby.players.find(p => p.name === imposterName);
@@ -261,7 +296,10 @@ app.post('/api/game/imposter/start', async (req, res) => {
         playerInLobby.role = 'Normie';
     });
 
-    const wordPairs = await getWordPairs();
+    const wordPairs = await getWordPairs(settings.selectedCategories);
+    if (!wordPairs || wordPairs.length === 0) {
+        return res.status(400).json({ success: false, message: "No words found for the selected categories. Please select at least one category with words." });
+    }
     const wordPair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
 
     lobby.players.forEach(player => {
@@ -301,7 +339,13 @@ app.post('/api/game/imposter/vote', (req, res) => {
     if (!lobby.votes[username]) {
         lobby.votes[username] = [];
     }
-    if (lobby.votes[username].length < lobby.settings.imposterCount && !lobby.votes[username].includes(voteFor)) {
+    let imposterCount = lobby.settings.imposterCount;
+    if (lobby.settings.imposterCountMode === 'random') {
+        // We need to know the actual count that was calculated
+        imposterCount = lobby.players.filter(p => p.role === 'Imposter').length;
+    }
+
+    if (lobby.votes[username].length < imposterCount && !lobby.votes[username].includes(voteFor)) {
         lobby.votes[username].push(voteFor);
     }
 
@@ -310,7 +354,7 @@ app.post('/api/game/imposter/vote', (req, res) => {
         totalVotes += lobby.votes[user].length;
     }
 
-    if (totalVotes >= lobby.players.length * lobby.settings.imposterCount) {
+    if (totalVotes >= lobby.players.length * imposterCount) {
         lobby.gameState = 'ended';
 
         const voteCounts = {};
