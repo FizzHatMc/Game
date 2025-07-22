@@ -20,7 +20,8 @@ window.i18n = {
     init: async function() {
         this.currentLang = localStorage.getItem('language') || 'en';
         try {
-            const response = await fetch('/js/translation.json');
+            // FIX: Standardizing on the plural filename 'translations.json'
+            const response = await fetch('/js/translations.json');
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -214,10 +215,8 @@ async function App() {
     usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSetUsername(); });
 }
 
-// FIX: This new structure ensures translations are loaded *before* the main app logic runs.
+// This structure ensures translations are loaded *before* the main app logic runs.
 document.addEventListener('DOMContentLoaded', async () => {
-    // First, initialize the translation system.
     await window.i18n.init();
-    // Then, run the main application logic.
     App();
 });
