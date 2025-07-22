@@ -227,7 +227,7 @@ body.dark-mode .game-card p { color: var(--subtle-text-color-dark); }
     margin-top: 15px;
 }
 
-input[type="text"], input[type="number"] {
+input[type="text"], input[type="number"], select {
     flex-grow: 1;
     padding: 12px 15px;
     border-radius: 8px;
@@ -235,21 +235,21 @@ input[type="text"], input[type="number"] {
     font-size: 1rem;
     transition: border-color 0.3s, background-color 0.3s;
 }
-body.light-mode input[type="text"], body.light-mode input[type="number"] {
+body.light-mode input[type="text"], body.light-mode input[type="number"], body.light-mode select {
     background-color: var(--bg-color-light);
     border-color: var(--border-color-light);
     color: var(--text-color-light);
 }
-body.dark-mode input[type="text"], body.dark-mode input[type="number"] {
+body.dark-mode input[type="text"], body.dark-mode input[type="number"], body.dark-mode select {
     background-color: #1a202c;
     border-color: var(--border-color-dark);
     color: var(--text-color-dark);
 }
-input[type="text"]:focus, input[type="number"]:focus {
+input[type="text"]:focus, input[type="number"]:focus, select:focus {
     outline: none;
     border-color: var(--primary-color-light);
 }
-body.dark-mode input[type="text"]:focus, body.dark-mode input[type="number"]:focus {
+body.dark-mode input[type="text"]:focus, body.dark-mode input[type="number"]:focus, body.dark-mode select:focus {
     border-color: var(--primary-color-dark);
 }
 
@@ -353,9 +353,9 @@ body.dark-mode .imposter-settings { background-color: #1a202c; }
 .imposter-settings label {
     display: block;
     margin-bottom: 5px;
-    margin-top: 10px;
+    margin-top: 15px;
 }
-.imposter-settings input {
+.imposter-settings input, .imposter-settings select {
     width: 100%;
     box-sizing: border-box;
 }
@@ -385,4 +385,27 @@ body.dark-mode .imposter-settings { background-color: #1a202c; }
 }
 .player-vote-list button {
     width: 100%;
+}
+
+.category-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 10px;
+    border-radius: 8px;
+}
+body.light-mode .category-list { background-color: var(--bg-color-light); }
+body.dark-mode .category-list { background-color: #1a202c; }
+
+.category-item {
+    display: flex;
+    align-items: center;
+}
+.category-item input {
+    width: auto;
+    flex-grow: 0;
+    margin-right: 10px;
 }
