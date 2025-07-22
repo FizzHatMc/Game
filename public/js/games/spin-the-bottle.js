@@ -78,7 +78,7 @@ window.SpinTheBottle = (() => {
         document.getElementById('join-lobby-btn')?.addEventListener('click', handleJoinLobby);
         document.getElementById('spin-btn')?.addEventListener('click', handleSpin);
     };
-
+    
     const handleGoBack = () => {
         if (lobbyId) handleLeaveLobby();
         else cleanup();
@@ -108,29 +108,28 @@ window.SpinTheBottle = (() => {
         }
     };
 
-    const handleJoinLobby = async () => {
+    const handleJoinLobby = async (idToJoin) => {
         const lobbyInput = document.getElementById('join-lobby-input');
-        const lobbyMsg = document.getElementById('lobby-message');
-        const idToJoin = lobbyInput.value.trim();
-        if (!idToJoin) {
-            lobbyMsg.textContent = t('enterLobbyCode');
+        const lobbyIdToJoin = idToJoin || lobbyInput.value.trim();
+        if (!lobbyIdToJoin) {
+            if(lobbyInput) lobbyInput.placeholder = t('enterLobbyCode');
             return;
         }
 
         const response = await fetch('/api/lobby/join', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lobbyId: idToJoin }),
+            body: JSON.stringify({ lobbyId: lobbyIdToJoin }),
         });
         const data = await response.json();
         if (data.success) {
             lobbyId = data.lobbyId;
             startPolling();
         } else {
-            lobbyMsg.textContent = data.message;
+            if(lobbyInput) document.getElementById('lobby-message').textContent = data.message;
         }
     };
-
+    
     const handleSpin = async () => {
         const gameMsg = document.getElementById('game-message');
         gameMsg.textContent = '';
@@ -150,10 +149,10 @@ window.SpinTheBottle = (() => {
         pollLobbyState();
         pollInterval = setInterval(pollLobbyState, 2000);
     };
-
+    
     const pollLobbyState = async () => {
         if (!lobbyId) return;
-
+        
         try {
             const response = await fetch(`/api/lobby/${lobbyId}`);
             if (!response.ok) {
@@ -185,13 +184,16 @@ window.SpinTheBottle = (() => {
         container.innerHTML = '';
     };
 
-    const init = (gameContainer, backCallback) => {
+    const init = (gameContainer, backCallback, lobbyToJoin = null) => {
         container = gameContainer;
         goBackCallback = backCallback;
-        render({ lobbyId: null });
+        if (lobbyToJoin) {
+            handleJoinLobby(lobbyToJoin);
+        } else {
+            render({ lobbyId: null });
+        }
     };
-
-    // NEW: Function to re-render the component with the current language.
+    
     const refresh = () => {
         if(lastRenderedState) render(lastRenderedState);
     }
