@@ -1,30 +1,22 @@
 // public/js/main.js
 
-// Define the global i18n object. This will be accessible by all game scripts.
 window.i18n = {
     translations: {},
     currentLang: 'en',
-    
-    // The main translation function.
     t: function(key, replacements = {}) {
         const lang = this.translations[this.currentLang];
-        if (!lang) return key; // Fallback to key if language not found
+        if (!lang) return key;
         let text = key.split('.').reduce((obj, i) => obj && obj[i], lang) || key;
         for (const placeholder in replacements) {
             text = text.replace(`{${placeholder}}`, replacements[placeholder]);
         }
         return text;
     },
-
-    // Fetches the translation file and sets the current language.
     init: async function() {
         this.currentLang = localStorage.getItem('language') || 'en';
         try {
-            // FIX: Standardizing on the plural filename 'translations.json'
             const response = await fetch('/js/translations.json');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             this.translations = await response.json();
         } catch (error) {
             console.error("Could not load translations:", error);
@@ -32,12 +24,8 @@ window.i18n = {
     }
 };
 
-// This is the main application logic. It will only run after the DOM is ready.
 async function App() {
-    // --- State ---
     let currentGame = null;
-
-    // --- DOM Elements ---
     const themeToggle = document.getElementById('theme-toggle');
     const langSwitcher = document.getElementById('language-switcher');
     const usernameSection = document.getElementById('username-section');
@@ -47,14 +35,15 @@ async function App() {
     const gameSelectionSection = document.getElementById('game-selection');
     const gameListContainer = document.getElementById('game-list');
     const gameInterfaceSection = document.getElementById('game-interface');
+    const joinLobbyInput = document.getElementById('join-lobby-input');
+    const joinLobbyBtn = document.getElementById('join-lobby-btn');
+    const joinLobbyMessage = document.getElementById('join-lobby-message');
 
-    // --- Game Definitions ---
     const games = [
         { id: 'spin-the-bottle', nameKey: 'spinTheBottle.title', descKey: 'spinTheBottle.description' },
         { id: 'imposter', nameKey: 'imposter.title', descKey: 'imposter.description' }
     ];
 
-    // --- I18n Functions ---
     const applyTranslations = () => {
         document.querySelectorAll('[data-i18n]').forEach(el => {
             el.innerHTML = i18n.t(el.getAttribute('data-i18n'));
@@ -75,7 +64,6 @@ async function App() {
         }
     };
 
-    // --- General Functions ---
     const applyTheme = (isDarkMode) => {
         document.body.classList.toggle('light-mode', !isDarkMode);
         document.body.classList.toggle('dark-mode', isDarkMode);
@@ -93,30 +81,18 @@ async function App() {
         }
     };
 
-    const checkLoginState = async () => {
+    const restoreSession = async () => {
+        const activeLobby = sessionStorage.getItem('activeLobbyId') || sessionStorage.getItem('lobbyToJoin');
         if (localStorage.getItem('username_set')) {
-            await attemptAutoJoin();
+            if (activeLobby) {
+                await joinLobby(activeLobby, true);
+                sessionStorage.removeItem('lobbyToJoin');
+            } else {
+                showGameSelection();
+            }
         } else {
             showUsernameSetup();
         }
-    };
-
-    const attemptAutoJoin = async () => {
-        const lobbyToJoin = sessionStorage.getItem('lobbyToJoin');
-        if (lobbyToJoin) {
-            try {
-                const res = await fetch(`/api/lobby/${lobbyToJoin}`);
-                const data = await res.json();
-                if (data.success) {
-                    sessionStorage.removeItem('lobbyToJoin');
-                    loadGame(data.lobby.game, lobbyToJoin);
-                    return;
-                }
-            } catch (error) {
-                console.error("Failed to auto-join lobby:", error);
-            }
-        }
-        showGameSelection();
     };
 
     const showUsernameSetup = () => {
@@ -142,7 +118,6 @@ async function App() {
         const username = usernameInput.value.trim();
         if (username.length < 3) {
             usernameMessage.textContent = i18n.t('usernameError');
-            usernameMessage.className = 'message error';
             return;
         }
         try {
@@ -150,7 +125,7 @@ async function App() {
             const data = await response.json();
             if (data.success) {
                 localStorage.setItem('username_set', 'true');
-                await attemptAutoJoin();
+                await restoreSession();
             } else {
                 usernameMessage.textContent = data.message;
             }
@@ -197,6 +172,22 @@ async function App() {
         document.body.appendChild(script);
     };
 
+    const joinLobby = async (lobbyId, isAutoJoin = false) => {
+        try {
+            const res = await fetch(`/api/lobby/${lobbyId}`);
+            const data = await res.json();
+            if (data.success) {
+                sessionStorage.setItem('activeLobbyId', lobbyId);
+                loadGame(data.lobby.game, lobbyId);
+            } else {
+                if (!isAutoJoin) joinLobbyMessage.textContent = i18n.t('lobbyNotFound');
+            }
+        } catch (error) {
+            console.error("Failed to join lobby:", error);
+            if (!isAutoJoin) joinLobbyMessage.textContent = 'An error occurred.';
+        }
+    };
+
     // --- Initial Setup ---
     checkForJoinLink();
     
@@ -206,16 +197,16 @@ async function App() {
     const savedTheme = localStorage.getItem('theme') || 'dark';
     applyTheme(savedTheme === 'dark');
     
-    await checkLoginState();
+    await restoreSession();
 
     // --- Event Listeners ---
     themeToggle.addEventListener('change', toggleTheme);
     langSwitcher.addEventListener('change', handleLanguageChange);
     setUsernameBtn.addEventListener('click', handleSetUsername);
     usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSetUsername(); });
+    joinLobbyBtn.addEventListener('click', () => joinLobby(joinLobbyInput.value.trim()));
 }
 
-// This structure ensures translations are loaded *before* the main app logic runs.
 document.addEventListener('DOMContentLoaded', async () => {
     await window.i18n.init();
     App();

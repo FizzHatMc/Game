@@ -17,8 +17,8 @@ const dbConnection = mysql.createPool({
     connectionLimit: 10,
     host: '192.168.178.166',
     user: 'remote',
-    password: '040505', // <-- IMPORTANT: Add your database password here
-    database: 'my_app_db' // <-- IMPORTANT: Add your database name here
+    password: '', // <-- IMPORTANT: Add your database password here
+    database: '' // <-- IMPORTANT: Add your database name here
 });
 
 
@@ -192,8 +192,8 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
 
     if (lobby.game === 'imposter' && lobby.gameState === 'discussion' && Date.now() >= lobby.timerEndsAt) {
         lobby.gameState = 'voting';
-        lobby.votingRound = 1; // Start the first voting round
-        lobby.playerVotes = {}; // Reset player votes for the new round
+        lobby.votingRound = 1;
+        lobby.playerVotes = {};
         writeDb(lobbies);
     }
 
@@ -223,9 +223,35 @@ app.get('/api/game/imposter/categories', (req, res) => {
     });
 });
 
-app.post('/api/game/spin-the-bottle', (req, res) => { /* ... unchanged ... */ });
+app.post('/api/game/spin-the-bottle', (req, res) => {
+    const { lobbyId } = req.body;
+    const lobby = lobbies[lobbyId];
+    const username = req.cookies.username;
 
-app.post('/api/game/imposter/settings', (req, res) => { /* ... unchanged ... */ });
+    if (!lobby || lobby.host !== username || lobby.players.length < 2) {
+        return res.status(400).json({ success: false, message: 'Conditions not met to spin.' });
+    }
+
+    const randomIndex = Math.floor(Math.random() * lobby.players.length);
+    lobby.lastResult = `The bottle points to... ${lobby.players[randomIndex].name}!`;
+    
+    writeDb(lobbies);
+    res.json({ success: true, result: lobby.lastResult });
+});
+
+app.post('/api/game/imposter/settings', (req, res) => {
+    const { lobbyId, settings } = req.body;
+    const lobby = lobbies[lobbyId];
+    const username = req.cookies.username;
+
+    if (!lobby || lobby.host !== username) {
+        return res.status(403).json({ success: false, message: 'Only the host can change settings.' });
+    }
+
+    lobby.settings = settings;
+    writeDb(lobbies);
+    res.json({ success: true });
+});
 
 app.post('/api/game/imposter/start', async (req, res) => {
     const { lobbyId, settings } = req.body;
@@ -245,9 +271,9 @@ app.post('/api/game/imposter/start', async (req, res) => {
     }
 
     lobby.settings = settings;
-    lobby.votes = {}; // This will store votes from ALL rounds
-    lobby.playerVotes = {}; // This tracks votes for the CURRENT round
-    lobby.actualImposterCount = finalImposterCount; // Store the calculated count
+    lobby.votes = {};
+    lobby.playerVotes = {};
+    lobby.actualImposterCount = finalImposterCount;
 
     let playersToAssign = [...lobby.players];
     const imposters = [];
@@ -292,7 +318,6 @@ app.post('/api/game/imposter/start', async (req, res) => {
     res.json({ success: true });
 });
 
-// REVAMPED: Voting logic for multiple rounds
 app.post('/api/game/imposter/vote', (req, res) => {
     const { lobbyId, voteFor } = req.body;
     const lobby = lobbies[lobbyId];
@@ -302,24 +327,19 @@ app.post('/api/game/imposter/vote', (req, res) => {
         return res.status(400).json({ success: false, message: 'Cannot vote at this time.' });
     }
 
-    // Record the vote for the current round
     lobby.playerVotes[username] = voteFor;
 
-    // Check if everyone in the current round has voted
     if (Object.keys(lobby.playerVotes).length === lobby.players.length) {
-        // Add current round's votes to the main vote tally
         for (const voter in lobby.playerVotes) {
             const votedFor = lobby.playerVotes[voter];
             if (!lobby.votes[votedFor]) lobby.votes[votedFor] = 0;
             lobby.votes[votedFor]++;
         }
 
-        // Check if more rounds are needed
         if (lobby.votingRound < lobby.actualImposterCount) {
             lobby.votingRound++;
-            lobby.playerVotes = {}; // Reset for next round
+            lobby.playerVotes = {};
         } else {
-            // All rounds are done, end the game
             lobby.gameState = 'ended';
             lobby.voteResults = lobby.votes;
         }
@@ -329,7 +349,6 @@ app.post('/api/game/imposter/vote', (req, res) => {
     res.json({ success: true });
 });
 
-// NEW: Endpoint to restart the game
 app.post('/api/game/imposter/restart', (req, res) => {
     const { lobbyId } = req.body;
     const lobby = lobbies[lobbyId];
@@ -339,7 +358,6 @@ app.post('/api/game/imposter/restart', (req, res) => {
         return res.status(403).json({ success: false, message: 'Only the host can restart.' });
     }
 
-    // Reset game state but keep players and settings
     lobby.gameState = 'setup';
     delete lobby.voteResults;
     delete lobby.votes;
