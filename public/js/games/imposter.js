@@ -6,33 +6,20 @@ window.Imposter = (() => {
     let lobbyId = null;
     let pollInterval = null;
     let timerInterval = null;
-    let myVotes = [];
-    let categories = []; // Cache for categories
+    let categories = [];
 
     const t = window.i18n.t.bind(window.i18n);
 
     const render = (state) => {
         if (!container) return;
-
         let content = '';
         switch (state.lobby.gameState) {
-            case 'setup':
-                myVotes = [];
-                content = renderSetup(state);
-                break;
-            case 'discussion':
-                content = renderDiscussion(state);
-                break;
-            case 'voting':
-                content = renderVoting(state);
-                break;
-            case 'ended':
-                content = renderEnded(state);
-                break;
-            default:
-                content = `<p>An error has occurred.</p>`;
+            case 'setup': content = renderSetup(state); break;
+            case 'discussion': content = renderDiscussion(state); break;
+            case 'voting': content = renderVoting(state); break;
+            case 'ended': content = renderEnded(state); break;
+            default: content = `<p>An error has occurred.</p>`;
         }
-
         const html = `
             <div class="card">
                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -45,10 +32,7 @@ window.Imposter = (() => {
         `;
         container.innerHTML = html;
         addEventListeners(state);
-
-        if (state.lobby.gameState === 'discussion') {
-            startTimer(state.lobby.timerEndsAt);
-        }
+        if (state.lobby.gameState === 'discussion') startTimer(state.lobby.timerEndsAt);
     };
     
     const renderLobbyJoin = () => `
@@ -56,12 +40,6 @@ window.Imposter = (() => {
         <div class="input-group">
             <button id="create-lobby-btn">${t('createLobby')}</button>
         </div>
-        <hr style="margin: 20px 0;">
-        <div class="input-group">
-            <input type="text" id="join-lobby-input" placeholder="${t('enterLobbyCode')}">
-            <button id="join-lobby-btn">${t('joinLobby')}</button>
-        </div>
-        <p id="lobby-message" class="message"></p>
     `;
 
     const renderSetup = (state) => {
@@ -119,7 +97,6 @@ window.Imposter = (() => {
     `;
     }
 
-    // FIX: Restored the missing function body.
     const renderDiscussion = (state) => `
         <div class="imposter-reveal">
             <p>${t('imposter.youAreA')}</p>
@@ -137,13 +114,12 @@ window.Imposter = (() => {
         </div>
     `;
 
-    // FIX: Restored the missing function body.
+    // FIX: Changed the voting title logic to hide the total number of rounds.
     const renderVoting = (state) => {
         const round = state.lobby.votingRound;
-        const totalRounds = state.lobby.actualImposterCount;
         const hasVotedThisRound = state.lobby.playerVotes && state.lobby.playerVotes[state.username];
 
-        let roundTitle = t('imposter.voteRound', { round, totalRounds });
+        let roundTitle = t('imposter.voteRound', { round }); // Only show the current round
         if (round > 1 && !hasVotedThisRound) {
             roundTitle = t('imposter.moreImposters') + "<br>" + roundTitle;
         }
@@ -159,7 +135,6 @@ window.Imposter = (() => {
         `;
     };
 
-    // FIX: Restored the missing function body.
     const renderEnded = (state) => {
         const results = state.lobby.voteResults;
         let content = `<h4>${t('imposter.voteCounts')}</h4><ul>`;
@@ -183,7 +158,6 @@ window.Imposter = (() => {
         document.getElementById('back-to-selection')?.addEventListener('click', handleGoBack);
         document.getElementById('leave-lobby-btn')?.addEventListener('click', handleLeaveLobby);
         document.getElementById('create-lobby-btn')?.addEventListener('click', handleCreateLobby);
-        document.getElementById('join-lobby-btn')?.addEventListener('click', handleJoinLobby);
         document.getElementById('start-game-btn')?.addEventListener('click', handleStartGame);
         document.querySelectorAll('.vote-btn').forEach(btn => btn.addEventListener('click', handleVote));
         document.getElementById('play-again-btn')?.addEventListener('click', handleRestartGame);
@@ -210,71 +184,17 @@ window.Imposter = (() => {
     };
 
     const handleGoBack = () => { if (lobbyId) handleLeaveLobby(); else cleanup(); if (goBackCallback) goBackCallback(); };
-    const handleLeaveLobby = async () => { await fetch('/api/lobby/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId }), }); cleanup(); if (goBackCallback) goBackCallback(); };
-    const handleCreateLobby = async () => { const response = await fetch('/api/lobby/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameType: 'imposter' }) }); const data = await response.json(); if (data.success) { lobbyId = data.lobbyId; startPolling(); } };
-    const handleJoinLobby = async (idToJoin) => { const lobbyInput = document.getElementById('join-lobby-input'); const lobbyIdToJoin = idToJoin || lobbyInput.value.trim(); if (!lobbyIdToJoin) return; const response = await fetch('/api/lobby/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId: lobbyIdToJoin }), }); const data = await response.json(); if (data.success) { lobbyId = data.lobbyId; startPolling(); } else { if (lobbyInput) document.getElementById('lobby-message').textContent = data.message; } };
-
-    const handleSettingsChange = async () => {
-        const settings = {
-            imposterCountMode: document.getElementById('imposter-count-mode').value,
-            imposterCount: document.getElementById('imposter-count').value,
-            maxImposterPercentage: document.getElementById('max-imposter-percentage').value,
-            timer: document.getElementById('timer-duration').value,
-            useSameImposterWord: document.getElementById('same-imposter-word').checked,
-            selectedCategories: Array.from(document.querySelectorAll('#category-list input:checked')).map(cb => parseInt(cb.value))
-        };
-        await fetch('/api/game/imposter/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lobbyId, settings }),
-        });
-    };
-
-    const handleStartGame = async () => {
-        const gameMessage = document.getElementById('game-message');
-        gameMessage.textContent = '';
-        const settings = {
-            imposterCountMode: document.getElementById('imposter-count-mode').value,
-            imposterCount: document.getElementById('imposter-count').value,
-            maxImposterPercentage: document.getElementById('max-imposter-percentage').value,
-            timer: document.getElementById('timer-duration').value,
-            useSameImposterWord: document.getElementById('same-imposter-word').checked,
-            selectedCategories: Array.from(document.querySelectorAll('#category-list input:checked')).map(cb => parseInt(cb.value))
-        };
-        const response = await fetch('/api/game/imposter/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lobbyId, settings }),
-        });
-        const data = await response.json();
-        if (!data.success) {
-            gameMessage.textContent = data.message;
-        }
-    };
-
+    const handleLeaveLobby = async () => { sessionStorage.removeItem('activeLobbyId'); await fetch('/api/lobby/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId }), }); cleanup(); if (goBackCallback) goBackCallback(); };
+    const handleCreateLobby = async () => { const response = await fetch('/api/lobby/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameType: 'imposter' }) }); const data = await response.json(); if (data.success) { lobbyId = data.lobbyId; sessionStorage.setItem('activeLobbyId', lobbyId); startPolling(); } };
+    const handleSettingsChange = async () => { const settings = { imposterCountMode: document.getElementById('imposter-count-mode').value, imposterCount: document.getElementById('imposter-count').value, maxImposterPercentage: document.getElementById('max-imposter-percentage').value, timer: document.getElementById('timer-duration').value, useSameImposterWord: document.getElementById('same-imposter-word').checked, selectedCategories: Array.from(document.querySelectorAll('#category-list input:checked')).map(cb => parseInt(cb.value)) }; await fetch('/api/game/imposter/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId, settings }), }); };
+    const handleStartGame = async () => { const gameMessage = document.getElementById('game-message'); gameMessage.textContent = ''; const settings = { imposterCountMode: document.getElementById('imposter-count-mode').value, imposterCount: document.getElementById('imposter-count').value, maxImposterPercentage: document.getElementById('max-imposter-percentage').value, timer: document.getElementById('timer-duration').value, useSameImposterWord: document.getElementById('same-imposter-word').checked, selectedCategories: Array.from(document.querySelectorAll('#category-list input:checked')).map(cb => parseInt(cb.value)) }; const response = await fetch('/api/game/imposter/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId, settings }), }); const data = await response.json(); if (!data.success) { gameMessage.textContent = data.message; } };
     const handleVote = async (e) => { const voteFor = e.target.dataset.voteFor; document.querySelectorAll('.vote-btn').forEach(btn => btn.disabled = true); await fetch('/api/game/imposter/vote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId, voteFor }), }); };
     const handleRestartGame = async () => { await fetch('/api/game/imposter/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId }), }); };
     const startTimer = (endTime) => { if (timerInterval) clearInterval(timerInterval); const timerDisplay = document.getElementById('timer-display'); const updateTimer = () => { if (!timerDisplay) { clearInterval(timerInterval); return; } const remaining = Math.round((endTime - Date.now()) / 1000); if (remaining < 0) { clearInterval(timerInterval); } else { const minutes = Math.floor(remaining / 60).toString().padStart(2, '0'); const seconds = (remaining % 60).toString().padStart(2, '0'); timerDisplay.textContent = `${minutes}:${seconds}`; } }; updateTimer(); timerInterval = setInterval(updateTimer, 1000); };
-    const pollLobbyState = async () => { if (!lobbyId) return; try { const response = await fetch(`/api/lobby/${lobbyId}`); if (!response.ok) { handleGoBack(); return; } const data = await response.json(); if (data.success) { data.lobbyId = lobbyId; render(data); } } catch (error) { console.error('Polling error:', error); } };
+    const pollLobbyState = async () => { if (!lobbyId) return; try { const response = await fetch(`/api/lobby/${lobbyId}`); if (!response.ok) { handleGoBack(); return; } const data = await response.json(); if (data.success) { const usernameCookie = document.cookie.split('; ').find(row => row.startsWith('username=')); data.username = usernameCookie ? decodeURIComponent(usernameCookie.split('=')[1]) : null; data.lobbyId = lobbyId; render(data); } } catch (error) { console.error('Polling error:', error); } };
     const cleanup = () => { if (pollInterval) clearInterval(pollInterval); if (timerInterval) clearInterval(timerInterval); pollInterval = null; timerInterval = null; lobbyId = null; container.innerHTML = ''; };
-
-    const fetchCategories = async () => {
-        try {
-            const response = await fetch('/api/game/imposter/categories');
-            const data = await response.json();
-            if (data.success) {
-                categories = data.categories;
-            }
-        } catch (error) {
-            console.error("Could not fetch categories:", error);
-        }
-    };
-
-    const startPolling = () => {
-        if (pollInterval) clearInterval(pollInterval);
-        pollLobbyState();
-        pollInterval = setInterval(pollLobbyState, 2000);
-    };
+    const fetchCategories = async () => { try { const response = await fetch('/api/game/imposter/categories'); const data = await response.json(); if (data.success) { categories = data.categories; } } catch (error) { console.error("Could not fetch categories:", error); } };
+    const startPolling = () => { if (pollInterval) clearInterval(pollInterval); pollLobbyState(); pollInterval = setInterval(pollLobbyState, 2000); };
 
     const init = async (gameContainer, backCallback, lobbyToJoin = null) => {
         container = gameContainer;
@@ -282,7 +202,9 @@ window.Imposter = (() => {
         await fetchCategories();
         
         if (lobbyToJoin) {
-            handleJoinLobby(lobbyToJoin);
+            lobbyId = lobbyToJoin;
+            sessionStorage.setItem('activeLobbyId', lobbyId);
+            startPolling();
         } else {
             render({
                 lobby: { gameState: 'setup', players: [], settings: { imposterCount: 1, imposterCountMode: 'fixed', maxImposterPercentage: 50, timer: 60, useSameImposterWord: true, selectedCategories: [] } },
