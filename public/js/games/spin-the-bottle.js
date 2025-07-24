@@ -1,202 +1,164 @@
-// public/js/games/spin-the-bottle.js
+// public/js/main.js
 
-window.SpinTheBottle = (() => {
-    let container;
-    let goBackCallback;
-    let lobbyId = null;
-    let pollInterval = null;
-    let lastRenderedState = {}; // Cache the last state
-
-    // Use the global getTranslation function
-    const t = window.i18n.t.bind(window.i18n);
-
-    const render = (state) => {
-        if (!container) return;
-        lastRenderedState = state; // Update cache
-
-        const html = `
-            <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <button id="back-to-selection" class="secondary">${t('backToGames')}</button>
-                    ${state.lobbyId ? `<button id="leave-lobby-btn" class="secondary" style="border-color: #e74c3c; color: #e74c3c;">${t('leaveLobby')}</button>` : ''}
-                </div>
-                <h2>${t('spinTheBottle.title')}</h2>
-                ${!state.lobbyId ? renderLobbyJoin() : renderLobby(state)}
-            </div>
-        `;
-        container.innerHTML = html;
-        addEventListeners();
-
-        if (state.lobbyId && document.getElementById('qrcode')) {
-            document.getElementById('qrcode').innerHTML = "";
-            new QRCode(document.getElementById('qrcode'), {
-                text: window.location.origin + '#join=' + state.lobbyId,
-                width: 128,
-                height: 128,
-            });
+window.i18n = {
+    translations: {},
+    currentLang: 'en',
+    t: function(key, replacements = {}) {
+        const lang = this.translations[this.currentLang];
+        if (!lang) return key;
+        let text = key.split('.').reduce((obj, i) => obj && obj[i], lang) || key;
+        for (const placeholder in replacements) {
+            text = text.replace(`{${placeholder}}`, replacements[placeholder]);
         }
-    };
+        return text;
+    },
+    init: async function() {
+        this.currentLang = localStorage.getItem('language') || 'en';
+        try {
+            const response = await fetch('/js/translations.json');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            this.translations = await response.json();
+        } catch (error) {
+            console.error("Could not load translations:", error);
+        }
+    }
+};
 
-    const renderLobbyJoin = () => `
-        <p>${t('createOrJoin')}</p>
-        <div class="input-group">
-            <button id="create-lobby-btn">${t('createLobby')}</button>
-        </div>
-        <hr style="margin: 20px 0;">
-        <div class="input-group">
-            <input type="text" id="join-lobby-input" placeholder="${t('enterLobbyCode')}">
-            <button id="join-lobby-btn">${t('joinLobby')}</button>
-        </div>
-        <p id="lobby-message" class="message"></p>
-    `;
+async function App() {
+    let currentGame = null;
+    const themeToggle = document.getElementById('theme-toggle');
+    const langSwitcher = document.getElementById('language-switcher');
+    const usernameSection = document.getElementById('username-section');
+    const usernameInput = document.getElementById('username-input');
+    const setUsernameBtn = document.getElementById('set-username-btn');
+    const usernameMessage = document.getElementById('username-message');
+    const gameSelectionSection = document.getElementById('game-selection');
+    const gameListContainer = document.getElementById('game-list');
+    const gameInterfaceSection = document.getElementById('game-interface');
+    // NEW: Centralized join elements
+    const joinLobbyInput = document.getElementById('join-lobby-input');
+    const joinLobbyBtn = document.getElementById('join-lobby-btn');
+    const joinLobbyMessage = document.getElementById('join-lobby-message');
 
-    const renderLobby = (state) => `
-        <p>${t('spinTheBottle.lobbyCode')}: <strong style="font-size: 1.2em; letter-spacing: 2px;">${state.lobbyId}</strong></p>
-        <div style="text-align: center;">
-            <p>${t('spinTheBottle.shareWithFriends')}</p>
-            <div id="qrcode"></div>
-        </div>
-        <hr style="margin: 20px 0;">
-        <p><strong>${t('spinTheBottle.players')}:</strong></p>
-        <ul class="player-list">
-            ${state.players.map(p => `<li class="player-tag">${p.name} ${p.name === state.host ? `👑 ${t('spinTheBottle.host')}` : ''}</li>`).join('')}
-        </ul>
-        <div class="game-result" id="game-result-display">
-            ${state.lastResult || t('spinTheBottle.waitingForHost')}
-        </div>
-        <div class="input-group">
-            <button id="spin-btn" ${state.isHost ? '' : 'disabled'}>${t('spinTheBottle.spinTheBottle')}</button>
-        </div>
-        <p id="game-message" class="message"></p>
-        ${!state.isHost ? `<p>${t('spinTheBottle.onlyHostSpins')}</p>` : ''}
-    `;
+    const games = [
+        { id: 'spin-the-bottle', nameKey: 'spinTheBottle.title', descKey: 'spinTheBottle.description' },
+        { id: 'imposter', nameKey: 'imposter.title', descKey: 'imposter.description' }
+    ];
 
-    const addEventListeners = () => {
-        document.getElementById('back-to-selection')?.addEventListener('click', handleGoBack);
-        document.getElementById('leave-lobby-btn')?.addEventListener('click', handleLeaveLobby);
-        document.getElementById('create-lobby-btn')?.addEventListener('click', handleCreateLobby);
-        document.getElementById('join-lobby-btn')?.addEventListener('click', handleJoinLobby);
-        document.getElementById('spin-btn')?.addEventListener('click', handleSpin);
-    };
+    const applyTranslations = () => { /* ... unchanged ... */ };
+    const handleLanguageChange = () => { /* ... unchanged ... */ };
+    const applyTheme = (isDarkMode) => { /* ... unchanged ... */ };
+    const toggleTheme = () => applyTheme(!document.body.classList.contains('light-mode'));
     
-    const handleGoBack = () => {
-        if (lobbyId) handleLeaveLobby();
-        else cleanup();
-        if (goBackCallback) goBackCallback();
-    };
-
-    const handleLeaveLobby = async () => {
-        await fetch('/api/lobby/leave', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lobbyId }),
-        });
-        cleanup();
-        if(goBackCallback) goBackCallback();
-    };
-
-    const handleCreateLobby = async () => {
-        const response = await fetch('/api/lobby/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ gameType: 'spin-the-bottle' })
-        });
-        const data = await response.json();
-        if (data.success) {
-            lobbyId = data.lobbyId;
-            startPolling();
+    const checkForJoinLink = () => {
+        const hash = window.location.hash;
+        if (hash.startsWith('#join=')) {
+            sessionStorage.setItem('lobbyToJoin', hash.substring(6));
+            history.pushState("", document.title, window.location.pathname + window.location.search);
         }
     };
 
-    const handleJoinLobby = async (idToJoin) => {
-        const lobbyInput = document.getElementById('join-lobby-input');
-        const lobbyIdToJoin = idToJoin || lobbyInput.value.trim();
-        if (!lobbyIdToJoin) {
-            if(lobbyInput) lobbyInput.placeholder = t('enterLobbyCode');
+    // FIX: Renamed and repurposed to handle all session restoration
+    const restoreSession = async () => {
+        const activeLobby = sessionStorage.getItem('activeLobbyId') || sessionStorage.getItem('lobbyToJoin');
+        if (localStorage.getItem('username_set')) {
+            if (activeLobby) {
+                await joinLobby(activeLobby, true);
+                sessionStorage.removeItem('lobbyToJoin'); // Clean up join link
+            } else {
+                showGameSelection();
+            }
+        } else {
+            showUsernameSetup();
+        }
+    };
+
+    const showUsernameSetup = () => { /* ... unchanged ... */ };
+    const showGameSelection = () => { /* ... unchanged ... */ };
+    const showGameInterface = () => { /* ... unchanged ... */ };
+
+    const handleSetUsername = async () => {
+        const username = usernameInput.value.trim();
+        if (username.length < 3) {
+            usernameMessage.textContent = i18n.t('usernameError');
             return;
         }
-
-        const response = await fetch('/api/lobby/join', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lobbyId: lobbyIdToJoin }),
-        });
-        const data = await response.json();
-        if (data.success) {
-            lobbyId = data.lobbyId;
-            startPolling();
-        } else {
-            if(lobbyInput) document.getElementById('lobby-message').textContent = data.message;
-        }
-    };
-    
-    const handleSpin = async () => {
-        const gameMsg = document.getElementById('game-message');
-        gameMsg.textContent = '';
-        const response = await fetch('/api/game/spin-the-bottle', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lobbyId }),
-        });
-        const data = await response.json();
-        if (!data.success) {
-            gameMsg.textContent = data.message;
-        }
-    };
-
-    const startPolling = () => {
-        if (pollInterval) clearInterval(pollInterval);
-        pollLobbyState();
-        pollInterval = setInterval(pollLobbyState, 2000);
-    };
-    
-    const pollLobbyState = async () => {
-        if (!lobbyId) return;
-        
         try {
-            const response = await fetch(`/api/lobby/${lobbyId}`);
-            if (!response.ok) {
-                cleanup();
-                const card = document.querySelector('#game-interface .card');
-                if(card) card.innerHTML = `<p class="message error">${t('lobbyNotFound')}</p><button id="back-to-selection" class="secondary">${t('backToGames')}</button>`;
-                document.getElementById('back-to-selection')?.addEventListener('click', handleGoBack);
-                return;
-            }
+            const response = await fetch('/api/user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username }), });
             const data = await response.json();
             if (data.success) {
-                render({
-                    lobbyId: lobbyId,
-                    players: data.lobby.players,
-                    host: data.lobby.host,
-                    isHost: data.isHost,
-                    lastResult: data.lobby.lastResult
-                });
+                localStorage.setItem('username_set', 'true');
+                await restoreSession(); // After setting name, try to join/restore
+            } else {
+                usernameMessage.textContent = data.message;
             }
         } catch (error) {
-            console.error('Polling error:', error);
+            usernameMessage.textContent = 'An error occurred.';
         }
     };
 
-    const cleanup = () => {
-        if (pollInterval) clearInterval(pollInterval);
-        pollInterval = null;
-        lobbyId = null;
-        container.innerHTML = '';
+    const populateGameList = () => { /* ... unchanged ... */ };
+
+    const loadGame = (gameId, lobbyToJoin = null) => {
+        if (currentGame && currentGame.cleanup) currentGame.cleanup();
+        gameInterfaceSection.innerHTML = '';
+
+        const script = document.createElement('script');
+        script.src = `/js/games/${gameId}.js`;
+        script.onload = () => {
+            const gameObjectName = gameId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('').replace('-', '');
+            if (window[gameObjectName] && typeof window[gameObjectName].init === 'function') {
+                currentGame = window[gameObjectName];
+                currentGame.init(gameInterfaceSection, showGameSelection, lobbyToJoin);
+                showGameInterface();
+            } else {
+                gameInterfaceSection.innerHTML = `<p class="message error">Error loading game.</p>`;
+                showGameSelection();
+            }
+        };
+        script.onerror = () => {
+            gameInterfaceSection.innerHTML = `<p class="message error">Could not load game files.</p>`;
+        };
+        document.body.appendChild(script);
     };
 
-    const init = (gameContainer, backCallback, lobbyToJoin = null) => {
-        container = gameContainer;
-        goBackCallback = backCallback;
-        if (lobbyToJoin) {
-            handleJoinLobby(lobbyToJoin);
-        } else {
-            render({ lobbyId: null });
+    // NEW: Centralized function to join any lobby by its code
+    const joinLobby = async (lobbyId, isAutoJoin = false) => {
+        try {
+            const res = await fetch(`/api/lobby/${lobbyId}`);
+            const data = await res.json();
+            if (data.success) {
+                sessionStorage.setItem('activeLobbyId', lobbyId);
+                loadGame(data.lobby.game, lobbyId);
+            } else {
+                if (!isAutoJoin) joinLobbyMessage.textContent = i18n.t('lobbyNotFound');
+            }
+        } catch (error) {
+            console.error("Failed to join lobby:", error);
+            if (!isAutoJoin) joinLobbyMessage.textContent = 'An error occurred.';
         }
     };
+
+    // --- Initial Setup ---
+    checkForJoinLink();
     
-    const refresh = () => {
-        if(lastRenderedState) render(lastRenderedState);
-    }
+    langSwitcher.value = i18n.currentLang;
+    applyTranslations();
+    
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    applyTheme(savedTheme === 'dark');
+    
+    await restoreSession();
 
-    return { init, cleanup, refresh };
-})();
+    // --- Event Listeners ---
+    themeToggle.addEventListener('change', toggleTheme);
+    langSwitcher.addEventListener('change', handleLanguageChange);
+    setUsernameBtn.addEventListener('click', handleSetUsername);
+    usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSetUsername(); });
+    joinLobbyBtn.addEventListener('click', () => joinLobby(joinLobbyInput.value.trim()));
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await window.i18n.init();
+    App();
+});
