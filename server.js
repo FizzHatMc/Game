@@ -114,7 +114,6 @@ app.post('/api/user', (req, res) => {
     if (!username || username.trim().length < 3) {
         return res.status(400).json({ success: false, message: 'Username must be at least 3 characters long.' });
     }
-    // FIX: Set httpOnly to false so client-side JavaScript can read the cookie.
     res.cookie('username', username, { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: false });
     res.json({ success: true, message: 'Username set successfully.' });
 });
@@ -225,10 +224,12 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
     const isHost = lobby.host === username;
     
     let personalLobbyState = { ...lobby };
-    if (lobby.game === 'imposter' && (lobby.gameState === 'discussion' || lobby.gameState === 'ended')) {
+    // FIX: Ensure the 'me' object is attached during the voting phase as well.
+    if (lobby.game === 'imposter' && (lobby.gameState === 'discussion' || lobby.gameState === 'voting' || lobby.gameState === 'ended')) {
         const me = lobby.players.find(p => p.name === username);
         personalLobbyState.me = me;
         if (lobby.gameState !== 'ended') {
+            // Only reveal names, not roles/words, before the game is over.
             personalLobbyState.players = lobby.players.map(p => ({ name: p.name }));
         }
     }
