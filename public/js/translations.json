@@ -56,7 +56,9 @@
       "votes": "votes",
       "roleReveal": "Role Reveal:",
       "wasA": "was a",
-      "playAgain": "Play Again"
+      "playAgain": "Play Again",
+      "joinByCode": "Have a code? Join a Lobby",
+      "joinExisting": "Join Existing Lobby"
     }
   },
   "de": {
@@ -116,7 +118,9 @@
       "votes": "Stimmen",
       "roleReveal": "Rollen-Enthüllung:",
       "wasA": "war ein",
-      "playAgain": "Nochmal spielen"
+      "playAgain": "Nochmal spielen",
+      "joinByCode": "Hast du einen Code? Tritt einer Lobby bei",
+      "joinExisting": "Bestehender Lobby beitreten"
     }
   }
 }

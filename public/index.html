@@ -50,11 +50,10 @@
                 <!-- Game cards will be injected here by JavaScript -->
             </div>
             
-            <!-- FIX: Changed the join form to be collapsible to not confuse the user -->
             <div class="join-by-code-section">
-                <button id="show-join-form-btn" class="secondary" style="margin-top: 40px;">Have a code? Join a Lobby</button>
+                <button id="show-join-form-btn" class="secondary" style="margin-top: 40px;" data-i18n="imposter.joinByCode">Have a code? Join a Lobby</button>
                 <div id="join-form-container" class="card hidden" style="margin-top: 20px;">
-                    <h3>Join Existing Lobby</h3>
+                    <h3 data-i18n="imposter.joinExisting">Join Existing Lobby</h3>
                     <div class="input-group">
                         <input type="text" id="join-lobby-input" data-i18n-placeholder="enterLobbyCode" placeholder="Enter Lobby Code">
                         <button id="join-lobby-btn" data-i18n="joinLobby">Join Lobby</button>
