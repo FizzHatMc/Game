@@ -12,18 +12,6 @@ window.Imposter = (() => {
     // A helper function to get translated text.
     const t = window.i18n.t.bind(window.i18n);
 
-    // FIX: Create a reliable, centralized way to read the username cookie.
-    const getUsername = () => {
-        const cookies = document.cookie.split('; ');
-        for (const cookie of cookies) {
-            const [name, value] = cookie.split('=');
-            if (name === 'username') {
-                return decodeURIComponent(value);
-            }
-        }
-        return null;
-    };
-
     /**
      * The main render function. It decides which view to show based on the lobby's state.
      * @param {object} state - The current state of the game lobby.
@@ -172,11 +160,11 @@ window.Imposter = (() => {
     // Renders the discussion phase screen, revealing roles and words.
     const renderDiscussion = (state) => {
         const { lobby } = state;
-        const username = getUsername(); // Use the reliable function
-        const me = lobby.players.find(p => p.name === username);
+        // FIX: Use the `me` object provided by the server instead of searching for the player again.
+        const me = lobby.me;
 
         if (!me || !me.role) {
-            console.error("Could not find player data for user:", username, "in lobby:", lobby);
+            console.error("Could not find player data provided by the server:", lobby);
             return `<p>${t('errorPlayerNotFound')}</p>`;
         }
 
@@ -196,8 +184,7 @@ window.Imposter = (() => {
     // Renders the voting screen.
     const renderVoting = (state) => {
         const { lobby } = state;
-        const username = getUsername();
-        const myVotes = (lobby.votes && lobby.votes[username]) || [];
+        const myVotes = (lobby.votes && lobby.votes[lobby.me.name]) || [];
 
         if (myVotes.length >= lobby.currentRound) {
             return `
