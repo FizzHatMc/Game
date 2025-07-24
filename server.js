@@ -17,8 +17,8 @@ const dbConnection = mysql.createPool({
     connectionLimit: 10,
     host: '192.168.178.166',
     user: 'remote',
-    password: '', // <-- IMPORTANT: Add your database password here
-    database: '' // <-- IMPORTANT: Add your database name here
+    password: '040505', // <-- IMPORTANT: Add your database password here
+    database: 'my_app_db' // <-- IMPORTANT: Add your database name here
 });
 
 
