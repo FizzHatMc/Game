@@ -65,10 +65,12 @@ window.Imposter = (() => {
             if (state.lobby.gameState === 'discussion') {
                 startTimer(state.lobby.timerEndsAt);
             } else if (state.lobby.gameState === 'setup') {
+                 // FIX: Make QR code more robust and scannable.
                 new QRCode(document.getElementById("qrcode"), {
                     text: `${window.location.origin}#join=${state.lobbyId}`,
                     width: 128,
                     height: 128,
+                    correctLevel: QRCode.CorrectLevel.H // High error correction
                 });
             }
         }
@@ -253,7 +255,8 @@ window.Imposter = (() => {
             document.getElementById('imposter-count-mode')?.addEventListener('change', handleSettingsChange);
             document.getElementById('imposter-count-fixed')?.addEventListener('change', handleSettingsChange);
             document.getElementById('imposter-max-percentage')?.addEventListener('input', (e) => {
-                document.getElementById('percentage-display').textContent = `${e.target.value}%`;
+                const display = document.getElementById('percentage-display');
+                if(display) display.textContent = `${e.target.value}%`;
             });
             document.getElementById('imposter-max-percentage')?.addEventListener('change', handleSettingsChange);
             document.getElementById('timer-duration')?.addEventListener('change', handleSettingsChange);
@@ -391,7 +394,7 @@ window.Imposter = (() => {
         
         if (lobbyToJoin) {
             lobbyId = lobbyToJoin;
-            sessionStorage.setItem('activeLobbyId', lobbyId);
+            // The main script now handles setting sessionStorage
             startPolling();
         } else {
             render({ lobby: null, isHost: false, lobbyId: null });

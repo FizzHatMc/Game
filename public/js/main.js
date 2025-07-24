@@ -24,7 +24,7 @@ window.i18n = {
     }
 };
 
-async function App() {
+function App() {
     let currentGame = null;
     const themeToggle = document.getElementById('theme-toggle');
     const langSwitcher = document.getElementById('language-switcher');
@@ -49,7 +49,6 @@ async function App() {
             el.placeholder = i18n.t(el.getAttribute('data-i18n-placeholder'));
         });
         document.title = i18n.t('siteTitle');
-        // FIX: Always repopulate the game list after a translation change.
         if (!gameSelectionSection.classList.contains('hidden')) {
             populateGameList();
         }
@@ -81,12 +80,19 @@ async function App() {
     };
 
     const restoreSession = async () => {
-        const activeLobby = sessionStorage.getItem('activeLobbyId') || sessionStorage.getItem('lobbyToJoin');
+        const activeLobby = sessionStorage.getItem('activeLobbyId');
+        const lobbyToJoin = sessionStorage.getItem('lobbyToJoin');
+
         if (localStorage.getItem('username_set')) {
             if (activeLobby) {
+                // If we were already in a lobby, try to rejoin it.
                 await joinLobby(activeLobby, true);
+            } else if (lobbyToJoin) {
+                // If we clicked a link, join that lobby.
+                await joinLobby(lobbyToJoin);
                 sessionStorage.removeItem('lobbyToJoin');
             } else {
+                // Otherwise, show the game selection screen.
                 showGameSelection();
             }
         } else {
@@ -111,11 +117,15 @@ async function App() {
         const joinLobbyInput = document.getElementById('join-lobby-input');
         const joinLobbyBtn = document.getElementById('join-lobby-btn');
         
-        showJoinFormBtn.addEventListener('click', () => {
-            joinFormContainer.classList.toggle('hidden');
-        });
+        if (showJoinFormBtn) {
+            showJoinFormBtn.addEventListener('click', () => {
+                joinFormContainer.classList.toggle('hidden');
+            });
+        }
 
-        joinLobbyBtn.addEventListener('click', () => joinLobby(joinLobbyInput.value.trim()));
+        if(joinLobbyBtn) {
+            joinLobbyBtn.addEventListener('click', () => joinLobby(joinLobbyInput.value.trim()));
+        }
     };
     
     const showGameInterface = () => {
@@ -145,6 +155,7 @@ async function App() {
     };
 
     const populateGameList = () => {
+        if (!gameListContainer) return;
         gameListContainer.innerHTML = '';
         games.forEach(game => {
             const card = document.createElement('div');
@@ -166,7 +177,7 @@ async function App() {
         const script = document.createElement('script');
         script.src = `/js/games/${gameId}.js`;
         script.onload = () => {
-            const gameObjectName = gameId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('').replace('-', '');
+            const gameObjectName = gameId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('');
             if (window[gameObjectName] && typeof window[gameObjectName].init === 'function') {
                 currentGame = window[gameObjectName];
                 currentGame.init(gameInterfaceSection, showGameSelection, lobbyToJoin);
@@ -182,17 +193,38 @@ async function App() {
         document.body.appendChild(script);
     };
 
-    const joinLobby = async (lobbyId) => {
+    const joinLobby = async (lobbyId, isRestoring = false) => {
         const joinLobbyMessage = document.getElementById('join-lobby-message');
         if (!lobbyId) return;
+        
         try {
-            const res = await fetch(`/api/lobby/${lobbyId}`);
-            const data = await res.json();
-            if (data.success) {
-                sessionStorage.setItem('activeLobbyId', lobbyId);
-                loadGame(data.lobby.game, lobbyId);
+            // FIX: Always send a POST request to the /join endpoint to ensure the player is added.
+            const joinRes = await fetch('/api/lobby/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lobbyId })
+            });
+
+            const joinData = await joinRes.json();
+
+            if (joinData.success) {
+                // After successfully joining, fetch the game type to load the correct game.
+                const lobbyInfoRes = await fetch(`/api/lobby/${lobbyId}`);
+                const lobbyInfoData = await lobbyInfoRes.json();
+
+                if (lobbyInfoData.success) {
+                    sessionStorage.setItem('activeLobbyId', lobbyId);
+                    loadGame(lobbyInfoData.lobby.game, lobbyId);
+                } else {
+                     if (joinLobbyMessage) joinLobbyMessage.textContent = lobbyInfoData.message || i18n.t('lobbyNotFound');
+                }
             } else {
-                if (joinLobbyMessage) joinLobbyMessage.textContent = i18n.t('lobbyNotFound');
+                 if (joinLobbyMessage) joinLobbyMessage.textContent = joinData.message || i18n.t('lobbyNotFound');
+                 if (isRestoring) {
+                     // If restoring a session to a now-dead lobby, clear it and go to game selection.
+                     sessionStorage.removeItem('activeLobbyId');
+                     showGameSelection();
+                 }
             }
         } catch (error) {
             console.error("Failed to join lobby:", error);
@@ -200,25 +232,29 @@ async function App() {
         }
     };
 
-    // --- Initial Setup ---
-    checkForJoinLink();
-    
-    langSwitcher.value = i18n.currentLang;
-    applyTranslations();
-    
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    applyTheme(savedTheme === 'dark');
-    
-    await restoreSession();
+    const initialize = async () => {
+        await i18n.init();
+        
+        // Initial setup calls
+        checkForJoinLink();
+        langSwitcher.value = i18n.currentLang;
+        applyTranslations();
+        
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        applyTheme(savedTheme === 'dark');
+        
+        await restoreSession();
 
-    // --- Event Listeners ---
-    themeToggle.addEventListener('change', toggleTheme);
-    langSwitcher.addEventListener('change', handleLanguageChange);
-    setUsernameBtn.addEventListener('click', handleSetUsername);
-    usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSetUsername(); });
+        // Top-level event listeners
+        themeToggle.addEventListener('change', toggleTheme);
+        langSwitcher.addEventListener('change', handleLanguageChange);
+        if(setUsernameBtn) {
+            setUsernameBtn.addEventListener('click', handleSetUsername);
+            usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSetUsername(); });
+        }
+    };
+
+    initialize();
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    await window.i18n.init();
-    App();
-});
+document.addEventListener('DOMContentLoaded', App);

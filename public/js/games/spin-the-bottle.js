@@ -49,7 +49,7 @@ window.SpinTheBottle = (() => {
             <div class="card">
                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <button id="back-to-selection" class="secondary">${t('backToGames')}</button>
-                    ${currentLobbyId ? `<button id="leave-lobby-btn" class="secondary" style="border-color: #e74c3c; color: #e74c3c;">${t('leaveLobby')}</button>` : ''}
+                    ${currentLobbyId ? `<button id="leave-lobby-btn" class="secondary destructive">${t('leaveLobby')}</button>` : ''}
                 </div>
                 <h2>${t('spinTheBottle.title')}</h2>
                 ${content}
@@ -58,10 +58,12 @@ window.SpinTheBottle = (() => {
         container.innerHTML = html;
 
         if (currentLobbyId) {
+            // FIX: Make QR code more robust and scannable.
             new QRCode(document.getElementById("qrcode"), {
                 text: `${window.location.origin}#join=${currentLobbyId}`,
                 width: 128,
                 height: 128,
+                correctLevel: QRCode.CorrectLevel.H // High error correction
             });
         }
         addEventListeners(state);
@@ -151,7 +153,7 @@ window.SpinTheBottle = (() => {
         if (pollInterval) clearInterval(pollInterval);
         pollInterval = null;
         lobbyId = null;
-        container.innerHTML = '';
+        if(container) container.innerHTML = '';
     };
 
     const startPolling = () => {
@@ -166,7 +168,7 @@ window.SpinTheBottle = (() => {
         
         if (lobbyToJoin) {
             lobbyId = lobbyToJoin;
-            sessionStorage.setItem('activeLobbyId', lobbyId);
+            // The main script now handles setting sessionStorage
             startPolling();
         } else {
             render({ lobby: null, isHost: false, lobbyId: null });
