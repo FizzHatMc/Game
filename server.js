@@ -11,7 +11,7 @@ const mysql = require('mysql');
 const app = express();
 const port = 3000;
 const dbPath = path.join(__dirname, 'db.json');
-const dataPath = path.join(__dirname, 'data.json'); // Pfad zur neuen Konfigurationsdatei
+const dataPath = path.join(__dirname, '..', 'data.json');
 
 // --- Lade die Datenbank-Konfiguration aus data.json ---
 let dbConfig;
