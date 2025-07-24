@@ -24,7 +24,7 @@ window.SpinTheBottle = (() => {
             content = `
                 <div class="lobby-info">
                     <p>${t('spinTheBottle.lobbyCode')}: <strong>${currentLobbyId}</strong></p>
-                    <div id="qrcode" class="qr-code"></div>
+                    <div id="qrcode" class="qr-code" title="${t('qrCodeFullscreen')}"></div>
                     <p class="small-text">${t('spinTheBottle.shareWithFriends')}</p>
                 </div>
                 <div class="player-list">
@@ -58,33 +58,46 @@ window.SpinTheBottle = (() => {
         container.innerHTML = html;
 
         if (currentLobbyId) {
-            // FIX: Make QR code more robust and scannable.
+            // Generate QR Code
             new QRCode(document.getElementById("qrcode"), {
                 text: `${window.location.origin}#join=${currentLobbyId}`,
                 width: 128,
                 height: 128,
-                correctLevel: QRCode.CorrectLevel.H // High error correction
+                correctLevel: QRCode.CorrectLevel.H // High error correction for better scanability
             });
         }
         addEventListeners(state);
     };
 
     const addEventListeners = (state) => {
-        const backBtn = document.getElementById('back-to-selection');
-        if (backBtn) backBtn.addEventListener('click', handleGoBack);
+        document.getElementById('back-to-selection')?.addEventListener('click', handleGoBack);
+        document.getElementById('leave-lobby-btn')?.addEventListener('click', handleLeaveLobby);
+        document.getElementById('create-lobby-btn')?.addEventListener('click', handleCreateLobby);
+        document.getElementById('spin-btn')?.addEventListener('click', handleSpin);
 
-        if (state.lobbyId) {
-            const leaveBtn = document.getElementById('leave-lobby-btn');
-            if (leaveBtn) leaveBtn.addEventListener('click', handleLeaveLobby);
+        // NEW: Add click listener for fullscreen QR code
+        document.getElementById('qrcode')?.addEventListener('click', () => handleFullscreenQr(state.lobbyId));
+    };
 
-            if (state.isHost) {
-                const spinBtn = document.getElementById('spin-btn');
-                if (spinBtn) spinBtn.addEventListener('click', handleSpin);
-            }
-        } else {
-            const createLobbyBtn = document.getElementById('create-lobby-btn');
-            if (createLobbyBtn) createLobbyBtn.addEventListener('click', handleCreateLobby);
-        }
+    const handleFullscreenQr = (lobbyId) => {
+        if (!lobbyId) return;
+        const overlay = document.createElement('div');
+        overlay.className = 'qr-fullscreen-overlay';
+        overlay.innerHTML = `<div class="qr-code-large" id="qr-code-fullscreen"></div>`;
+        document.body.appendChild(overlay);
+
+        // Generate a larger QR code for the overlay
+        new QRCode(document.getElementById("qr-code-fullscreen"), {
+            text: `${window.location.origin}#join=${lobbyId}`,
+            width: 256,
+            height: 256,
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        // Remove overlay when clicked
+        overlay.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+        });
     };
 
     const handleGoBack = () => {
@@ -135,6 +148,7 @@ window.SpinTheBottle = (() => {
         try {
             const res = await fetch(`/api/lobby/${lobbyId}`);
             if (!res.ok) {
+                console.error(`Lobby ${lobbyId} not found, cleaning up.`);
                 cleanup();
                 if (goBackCallback) goBackCallback();
                 return;
@@ -168,7 +182,6 @@ window.SpinTheBottle = (() => {
         
         if (lobbyToJoin) {
             lobbyId = lobbyToJoin;
-            // The main script now handles setting sessionStorage
             startPolling();
         } else {
             render({ lobby: null, isHost: false, lobbyId: null });
@@ -176,7 +189,7 @@ window.SpinTheBottle = (() => {
     };
 
     const refresh = () => {
-        pollLobbyState();
+        if(lobbyId) pollLobbyState();
     };
 
     return { init, cleanup, refresh };

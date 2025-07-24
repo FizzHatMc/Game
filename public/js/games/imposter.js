@@ -65,12 +65,11 @@ window.Imposter = (() => {
             if (state.lobby.gameState === 'discussion') {
                 startTimer(state.lobby.timerEndsAt);
             } else if (state.lobby.gameState === 'setup') {
-                 // FIX: Make QR code more robust and scannable.
                 new QRCode(document.getElementById("qrcode"), {
                     text: `${window.location.origin}#join=${state.lobbyId}`,
                     width: 128,
                     height: 128,
-                    correctLevel: QRCode.CorrectLevel.H // High error correction
+                    correctLevel: QRCode.CorrectLevel.H // High error correction for better scanability
                 });
             }
         }
@@ -111,7 +110,7 @@ window.Imposter = (() => {
         return `
             <div class="lobby-info">
                 <p>${t('spinTheBottle.lobbyCode')}: <strong>${state.lobbyId}</strong></p>
-                <div id="qrcode" class="qr-code"></div>
+                <div id="qrcode" class="qr-code" title="${t('qrCodeFullscreen')}"></div>
                 <p class="small-text">${t('spinTheBottle.shareWithFriends')}</p>
             </div>
             <div class="imposter-setup-container">
@@ -237,21 +236,14 @@ window.Imposter = (() => {
      * @param {object} state - The current game state, used to determine which listeners to add.
      */
     const addEventListeners = (state) => {
-        const backBtn = document.getElementById('back-to-selection');
-        if (backBtn) backBtn.addEventListener('click', handleGoBack);
+        document.getElementById('back-to-selection')?.addEventListener('click', handleGoBack);
+        document.getElementById('leave-lobby-btn')?.addEventListener('click', handleLeaveLobby);
+        document.getElementById('create-lobby-btn')?.addEventListener('click', handleCreateLobby);
+        
+        // NEW: Add click listener for fullscreen QR code
+        document.getElementById('qrcode')?.addEventListener('click', () => handleFullscreenQr(state.lobbyId));
 
-        if (state.lobbyId) {
-            const leaveBtn = document.getElementById('leave-lobby-btn');
-            if (leaveBtn) leaveBtn.addEventListener('click', handleLeaveLobby);
-        }
-
-        if (!state.lobbyId) {
-            const createLobbyBtn = document.getElementById('create-lobby-btn');
-            if (createLobbyBtn) createLobbyBtn.addEventListener('click', handleCreateLobby);
-            return;
-        }
-
-        if (state.lobby.gameState === 'setup' && state.isHost) {
+        if (state.isHost && state.lobby?.gameState === 'setup') {
             document.getElementById('imposter-count-mode')?.addEventListener('change', handleSettingsChange);
             document.getElementById('imposter-count-fixed')?.addEventListener('change', handleSettingsChange);
             document.getElementById('imposter-max-percentage')?.addEventListener('input', (e) => {
@@ -263,11 +255,37 @@ window.Imposter = (() => {
             document.getElementById('same-imposter-word')?.addEventListener('change', handleSettingsChange);
             document.querySelectorAll('.category-checkbox').forEach(cb => cb.addEventListener('change', handleSettingsChange));
             document.getElementById('start-game-btn')?.addEventListener('click', handleStartGame);
-        } else if (state.lobby.gameState === 'voting') {
+        }
+        
+        if (state.lobby?.gameState === 'voting') {
              document.querySelectorAll('.vote-btn').forEach(btn => btn.addEventListener('click', handleVote));
-        } else if (state.lobby.gameState === 'ended' && state.isHost) {
+        }
+        
+        if (state.isHost && state.lobby?.gameState === 'ended') {
              document.getElementById('restart-game-btn')?.addEventListener('click', handleRestartGame);
         }
+    };
+    
+    // NEW: Handles creating and managing the fullscreen QR code overlay.
+    const handleFullscreenQr = (lobbyId) => {
+        if (!lobbyId) return;
+        const overlay = document.createElement('div');
+        overlay.className = 'qr-fullscreen-overlay';
+        overlay.innerHTML = `<div class="qr-code-large" id="qr-code-fullscreen"></div>`;
+        document.body.appendChild(overlay);
+
+        // Generate a larger QR code for the overlay
+        new QRCode(document.getElementById("qr-code-fullscreen"), {
+            text: `${window.location.origin}#join=${lobbyId}`,
+            width: 256,
+            height: 256,
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        // Remove overlay when clicked
+        overlay.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+        });
     };
 
     // --- Event Handler Functions ---
@@ -289,6 +307,8 @@ window.Imposter = (() => {
     
     const handleStartGame = async () => {
         const messageEl = document.getElementById('start-game-message');
+        if(messageEl) messageEl.textContent = ''; // Clear previous messages
+        
         const settings = {
             imposterCountMode: document.getElementById('imposter-count-mode').value,
             imposterCount: parseInt(document.getElementById('imposter-count-fixed').value, 10),
@@ -302,8 +322,6 @@ window.Imposter = (() => {
         if (!res.ok) {
             const error = await res.json();
             if (messageEl) messageEl.textContent = error.message || 'An error occurred.';
-        } else {
-             if (messageEl) messageEl.textContent = '';
         }
     };
     
@@ -340,6 +358,7 @@ window.Imposter = (() => {
         try {
             const res = await fetch(`/api/lobby/${lobbyId}`);
              if (!res.ok) {
+                console.error(`Lobby ${lobbyId} not found, cleaning up.`);
                 cleanup();
                 if (goBackCallback) goBackCallback();
                 return;
@@ -381,12 +400,6 @@ window.Imposter = (() => {
         pollInterval = setInterval(pollLobbyState, 2000);
     };
 
-    /**
-     * Initializes the game module.
-     * @param {HTMLElement} gameContainer - The DOM element to render the game into.
-     * @param {function} backCallback - A function to call when the user wants to go back to game selection.
-     * @param {string|null} lobbyToJoin - An optional lobby ID to join immediately.
-     */
     const init = async (gameContainer, backCallback, lobbyToJoin = null) => {
         container = gameContainer;
         goBackCallback = backCallback;
@@ -394,18 +407,15 @@ window.Imposter = (() => {
         
         if (lobbyToJoin) {
             lobbyId = lobbyToJoin;
-            // The main script now handles setting sessionStorage
             startPolling();
         } else {
             render({ lobby: null, isHost: false, lobbyId: null });
         }
     };
 
-    // Re-render the UI when language changes.
     const refresh = () => {
-        pollLobbyState();
+        if(lobbyId) pollLobbyState();
     };
 
-    // Expose public methods.
     return { init, cleanup, refresh };
 })();
