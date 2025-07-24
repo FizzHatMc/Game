@@ -50,14 +50,17 @@
                 <!-- Game cards will be injected here by JavaScript -->
             </div>
             
-            <!-- NEW: Centralized Join Lobby Form -->
-            <div class="card" style="margin-top: 40px;">
-                <h3>Join Existing Lobby</h3>
-                <div class="input-group">
-                    <input type="text" id="join-lobby-input" data-i18n-placeholder="enterLobbyCode" placeholder="Enter Lobby Code">
-                    <button id="join-lobby-btn" data-i18n="joinLobby">Join Lobby</button>
+            <!-- FIX: Changed the join form to be collapsible to not confuse the user -->
+            <div class="join-by-code-section">
+                <button id="show-join-form-btn" class="secondary" style="margin-top: 40px;">Have a code? Join a Lobby</button>
+                <div id="join-form-container" class="card hidden" style="margin-top: 20px;">
+                    <h3>Join Existing Lobby</h3>
+                    <div class="input-group">
+                        <input type="text" id="join-lobby-input" data-i18n-placeholder="enterLobbyCode" placeholder="Enter Lobby Code">
+                        <button id="join-lobby-btn" data-i18n="joinLobby">Join Lobby</button>
+                    </div>
+                    <p id="join-lobby-message" class="message"></p>
                 </div>
-                <p id="join-lobby-message" class="message"></p>
             </div>
         </section>
 

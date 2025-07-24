@@ -35,19 +35,38 @@ async function App() {
     const gameSelectionSection = document.getElementById('game-selection');
     const gameListContainer = document.getElementById('game-list');
     const gameInterfaceSection = document.getElementById('game-interface');
-    // NEW: Centralized join elements
-    const joinLobbyInput = document.getElementById('join-lobby-input');
-    const joinLobbyBtn = document.getElementById('join-lobby-btn');
-    const joinLobbyMessage = document.getElementById('join-lobby-message');
 
     const games = [
         { id: 'spin-the-bottle', nameKey: 'spinTheBottle.title', descKey: 'spinTheBottle.description' },
         { id: 'imposter', nameKey: 'imposter.title', descKey: 'imposter.description' }
     ];
 
-    const applyTranslations = () => { /* ... unchanged ... */ };
-    const handleLanguageChange = () => { /* ... unchanged ... */ };
-    const applyTheme = (isDarkMode) => { /* ... unchanged ... */ };
+    const applyTranslations = () => {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            el.innerHTML = i18n.t(el.getAttribute('data-i18n'));
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            el.placeholder = i18n.t(el.getAttribute('data-i18n-placeholder'));
+        });
+        document.title = i18n.t('siteTitle');
+        populateGameList();
+    };
+    
+    const handleLanguageChange = () => {
+        i18n.currentLang = langSwitcher.value;
+        localStorage.setItem('language', i18n.currentLang);
+        applyTranslations();
+        if (currentGame && currentGame.refresh) {
+            currentGame.refresh();
+        }
+    };
+
+    const applyTheme = (isDarkMode) => {
+        document.body.classList.toggle('light-mode', !isDarkMode);
+        document.body.classList.toggle('dark-mode', isDarkMode);
+        themeToggle.checked = !isDarkMode;
+        localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+    };
     const toggleTheme = () => applyTheme(!document.body.classList.contains('light-mode'));
     
     const checkForJoinLink = () => {
@@ -58,13 +77,12 @@ async function App() {
         }
     };
 
-    // FIX: Renamed and repurposed to handle all session restoration
     const restoreSession = async () => {
         const activeLobby = sessionStorage.getItem('activeLobbyId') || sessionStorage.getItem('lobbyToJoin');
         if (localStorage.getItem('username_set')) {
             if (activeLobby) {
                 await joinLobby(activeLobby, true);
-                sessionStorage.removeItem('lobbyToJoin'); // Clean up join link
+                sessionStorage.removeItem('lobbyToJoin');
             } else {
                 showGameSelection();
             }
@@ -73,9 +91,36 @@ async function App() {
         }
     };
 
-    const showUsernameSetup = () => { /* ... unchanged ... */ };
-    const showGameSelection = () => { /* ... unchanged ... */ };
-    const showGameInterface = () => { /* ... unchanged ... */ };
+    const showUsernameSetup = () => {
+        usernameSection.classList.remove('hidden');
+        gameSelectionSection.classList.add('hidden');
+        gameInterfaceSection.classList.add('hidden');
+    };
+
+    const showGameSelection = () => {
+        usernameSection.classList.add('hidden');
+        gameSelectionSection.classList.remove('hidden');
+        gameInterfaceSection.classList.add('hidden');
+        populateGameList();
+        
+        // FIX: Add event listeners for the new collapsible join form
+        const showJoinFormBtn = document.getElementById('show-join-form-btn');
+        const joinFormContainer = document.getElementById('join-form-container');
+        const joinLobbyInput = document.getElementById('join-lobby-input');
+        const joinLobbyBtn = document.getElementById('join-lobby-btn');
+        
+        showJoinFormBtn.addEventListener('click', () => {
+            joinFormContainer.classList.toggle('hidden');
+        });
+
+        joinLobbyBtn.addEventListener('click', () => joinLobby(joinLobbyInput.value.trim()));
+    };
+    
+    const showGameInterface = () => {
+        usernameSection.classList.add('hidden');
+        gameSelectionSection.classList.add('hidden');
+        gameInterfaceSection.classList.remove('hidden');
+    };
 
     const handleSetUsername = async () => {
         const username = usernameInput.value.trim();
@@ -88,7 +133,7 @@ async function App() {
             const data = await response.json();
             if (data.success) {
                 localStorage.setItem('username_set', 'true');
-                await restoreSession(); // After setting name, try to join/restore
+                await restoreSession();
             } else {
                 usernameMessage.textContent = data.message;
             }
@@ -97,7 +142,20 @@ async function App() {
         }
     };
 
-    const populateGameList = () => { /* ... unchanged ... */ };
+    const populateGameList = () => {
+        gameListContainer.innerHTML = '';
+        games.forEach(game => {
+            const card = document.createElement('div');
+            card.className = 'card game-card';
+            card.dataset.gameId = game.id;
+            card.innerHTML = `
+                <h3>${i18n.t(game.nameKey)}</h3>
+                <p>${i18n.t(game.descKey)}</p>
+            `;
+            card.addEventListener('click', () => loadGame(game.id));
+            gameListContainer.appendChild(card);
+        });
+    };
 
     const loadGame = (gameId, lobbyToJoin = null) => {
         if (currentGame && currentGame.cleanup) currentGame.cleanup();
@@ -122,8 +180,9 @@ async function App() {
         document.body.appendChild(script);
     };
 
-    // NEW: Centralized function to join any lobby by its code
-    const joinLobby = async (lobbyId, isAutoJoin = false) => {
+    const joinLobby = async (lobbyId) => {
+        const joinLobbyMessage = document.getElementById('join-lobby-message');
+        if (!lobbyId) return;
         try {
             const res = await fetch(`/api/lobby/${lobbyId}`);
             const data = await res.json();
@@ -131,11 +190,11 @@ async function App() {
                 sessionStorage.setItem('activeLobbyId', lobbyId);
                 loadGame(data.lobby.game, lobbyId);
             } else {
-                if (!isAutoJoin) joinLobbyMessage.textContent = i18n.t('lobbyNotFound');
+                if (joinLobbyMessage) joinLobbyMessage.textContent = i18n.t('lobbyNotFound');
             }
         } catch (error) {
             console.error("Failed to join lobby:", error);
-            if (!isAutoJoin) joinLobbyMessage.textContent = 'An error occurred.';
+            if (joinLobbyMessage) joinLobbyMessage.textContent = 'An error occurred.';
         }
     };
 
@@ -155,7 +214,6 @@ async function App() {
     langSwitcher.addEventListener('change', handleLanguageChange);
     setUsernameBtn.addEventListener('click', handleSetUsername);
     usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSetUsername(); });
-    joinLobbyBtn.addEventListener('click', () => joinLobby(joinLobbyInput.value.trim()));
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
