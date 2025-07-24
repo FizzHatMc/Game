@@ -12,6 +12,18 @@ window.Imposter = (() => {
     // A helper function to get translated text.
     const t = window.i18n.t.bind(window.i18n);
 
+    // FIX: Create a reliable, centralized way to read the username cookie.
+    const getUsername = () => {
+        const cookies = document.cookie.split('; ');
+        for (const cookie of cookies) {
+            const [name, value] = cookie.split('=');
+            if (name === 'username') {
+                return decodeURIComponent(value);
+            }
+        }
+        return null;
+    };
+
     /**
      * The main render function. It decides which view to show based on the lobby's state.
      * @param {object} state - The current state of the game lobby.
@@ -69,7 +81,7 @@ window.Imposter = (() => {
                     text: `${window.location.origin}#join=${state.lobbyId}`,
                     width: 128,
                     height: 128,
-                    correctLevel: QRCode.CorrectLevel.H // High error correction for better scanability
+                    correctLevel: QRCode.CorrectLevel.H
                 });
             }
         }
@@ -160,10 +172,13 @@ window.Imposter = (() => {
     // Renders the discussion phase screen, revealing roles and words.
     const renderDiscussion = (state) => {
         const { lobby } = state;
-        const username = document.cookie.replace(/(?:(?:^|.*;\s*)username\s*\=\s*([^;]*).*$)|^.*$/, "$1");
+        const username = getUsername(); // Use the reliable function
         const me = lobby.players.find(p => p.name === username);
 
-        if (!me || !me.role) return `<p>Error: Could not find your player data.</p>`;
+        if (!me || !me.role) {
+            console.error("Could not find player data for user:", username, "in lobby:", lobby);
+            return `<p>${t('errorPlayerNotFound')}</p>`;
+        }
 
         return `
             <div class="role-reveal">
@@ -181,10 +196,9 @@ window.Imposter = (() => {
     // Renders the voting screen.
     const renderVoting = (state) => {
         const { lobby } = state;
-        const username = document.cookie.replace(/(?:(?:^|.*;\s*)username\s*\=\s*([^;]*).*$)|^.*$/, "$1");
+        const username = getUsername();
         const myVotes = (lobby.votes && lobby.votes[username]) || [];
 
-        // Determine if the current player has already voted in this round.
         if (myVotes.length >= lobby.currentRound) {
             return `
                 <h3>${t('imposter.voteRound')} ${lobby.currentRound}</h3>
@@ -231,16 +245,10 @@ window.Imposter = (() => {
         `;
     };
     
-    /**
-     * Attaches event listeners to the interactive elements on the screen.
-     * @param {object} state - The current game state, used to determine which listeners to add.
-     */
     const addEventListeners = (state) => {
         document.getElementById('back-to-selection')?.addEventListener('click', handleGoBack);
         document.getElementById('leave-lobby-btn')?.addEventListener('click', handleLeaveLobby);
         document.getElementById('create-lobby-btn')?.addEventListener('click', handleCreateLobby);
-        
-        // NEW: Add click listener for fullscreen QR code
         document.getElementById('qrcode')?.addEventListener('click', () => handleFullscreenQr(state.lobbyId));
 
         if (state.isHost && state.lobby?.gameState === 'setup') {
@@ -266,7 +274,6 @@ window.Imposter = (() => {
         }
     };
     
-    // NEW: Handles creating and managing the fullscreen QR code overlay.
     const handleFullscreenQr = (lobbyId) => {
         if (!lobbyId) return;
         const overlay = document.createElement('div');
@@ -274,7 +281,6 @@ window.Imposter = (() => {
         overlay.innerHTML = `<div class="qr-code-large" id="qr-code-fullscreen"></div>`;
         document.body.appendChild(overlay);
 
-        // Generate a larger QR code for the overlay
         new QRCode(document.getElementById("qr-code-fullscreen"), {
             text: `${window.location.origin}#join=${lobbyId}`,
             width: 256,
@@ -282,13 +288,11 @@ window.Imposter = (() => {
             correctLevel: QRCode.CorrectLevel.H
         });
 
-        // Remove overlay when clicked
         overlay.addEventListener('click', () => {
             document.body.removeChild(overlay);
         });
     };
 
-    // --- Event Handler Functions ---
     const handleGoBack = () => { if (lobbyId) { handleLeaveLobby(); } else { cleanup(); if (goBackCallback) goBackCallback(); }};
     const handleLeaveLobby = async () => { sessionStorage.removeItem('activeLobbyId'); await fetch('/api/lobby/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId }), }); cleanup(); if (goBackCallback) goBackCallback(); };
     const handleCreateLobby = async () => { const response = await fetch('/api/lobby/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameType: 'imposter' }) }); const data = await response.json(); if (data.success) { lobbyId = data.lobbyId; sessionStorage.setItem('activeLobbyId', lobbyId); startPolling(); } };
@@ -307,7 +311,7 @@ window.Imposter = (() => {
     
     const handleStartGame = async () => {
         const messageEl = document.getElementById('start-game-message');
-        if(messageEl) messageEl.textContent = ''; // Clear previous messages
+        if(messageEl) messageEl.textContent = '';
         
         const settings = {
             imposterCountMode: document.getElementById('imposter-count-mode').value,
@@ -334,7 +338,6 @@ window.Imposter = (() => {
         await fetch('/api/game/imposter/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId }) });
     };
     
-    // --- Utility Functions ---
     const startTimer = (endTime) => {
         if (timerInterval) clearInterval(timerInterval);
         const timerDisplay = document.getElementById('timer-display');

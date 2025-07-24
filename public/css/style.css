@@ -71,6 +71,7 @@ p { margin-bottom: 1rem; color: var(--text-muted-color); }
 hr { border: none; border-top: 1px solid var(--secondary-border-color); margin: 2rem 0; }
 
 /* --- Header & Navigation --- */
+/* FIX: Restored flexbox properties to align header items correctly. */
 .header {
     display: flex;
     justify-content: space-between;
@@ -90,6 +91,7 @@ hr { border: none; border-top: 1px solid var(--secondary-border-color); margin: 
     align-items: center;
     gap: 1.5rem;
 }
+/* END FIX */
 
 select {
     background-color: var(--card-bg-color);
@@ -277,10 +279,12 @@ input:checked + .slider:before {
     border-radius: 8px;
     display: inline-block;
     margin: 1rem 0;
-    cursor: pointer; /* NEW: Add cursor pointer for fullscreen interaction */
+    cursor: pointer;
 }
-
-/* NEW: Fullscreen QR Code Overlay */
+.small-text {
+    font-size: 0.8rem;
+    color: var(--text-muted-color);
+}
 .qr-fullscreen-overlay {
     position: fixed;
     top: 0;
@@ -298,12 +302,6 @@ input:checked + .slider:before {
     padding: 2rem;
     background: white;
     border-radius: 16px;
-}
-/* END NEW */
-
-.small-text {
-    font-size: 0.8rem;
-    color: var(--text-muted-color);
 }
 
 /* --- Imposter Game Specific Styles --- */

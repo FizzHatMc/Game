@@ -56,7 +56,6 @@ const writeDb = (data) => {
 const getWordPairs = (categoryIds) => {
     return new Promise((resolve, reject) => {
         if (!categoryIds || categoryIds.length === 0) {
-            // If no categories are selected, return an empty list.
             return resolve([]);
         }
         
@@ -79,7 +78,6 @@ const getWordPairs = (categoryIds) => {
                 console.error("Error fetching word pairs from DB:", error);
                 return reject(error);
             }
-            // The DB returns a string for imposters, we need to convert it to an array.
             const formattedResults = results.map(row => ({
                 ...row,
                 imposters: row.imposters.split(',')
@@ -111,18 +109,16 @@ app.use(cookieParser());
 
 // --- API ROUTES ---
 
-// Set a user's name via a cookie
 app.post('/api/user', (req, res) => {
     const { username } = req.body;
     if (!username || username.trim().length < 3) {
         return res.status(400).json({ success: false, message: 'Username must be at least 3 characters long.' });
     }
-    // Set cookie to expire in 7 days
+    // FIX: Set httpOnly to false so client-side JavaScript can read the cookie.
     res.cookie('username', username, { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: false });
     res.json({ success: true, message: 'Username set successfully.' });
 });
 
-// Create a new game lobby
 app.post('/api/lobby/create', (req, res) => {
     const { gameType } = req.body;
     const lobbyId = uuidv4().substring(0, 6);
@@ -143,7 +139,6 @@ app.post('/api/lobby/create', (req, res) => {
     };
 
     if (gameType === 'imposter') {
-        // Initialize default settings for an Imposter game
         lobbies[lobbyId].settings = {
             imposterCountMode: 'fixed',
             imposterCount: 1,
@@ -160,7 +155,6 @@ app.post('/api/lobby/create', (req, res) => {
     res.json({ success: true, lobbyId });
 });
 
-// Join an existing game lobby
 app.post('/api/lobby/join', (req, res) => {
     const { lobbyId } = req.body;
     const username = req.cookies.username;
@@ -169,12 +163,10 @@ app.post('/api/lobby/join', (req, res) => {
         return res.status(400).json({ success: false, message: 'Lobby ID is required.' });
     }
     
-    // FIX: Make the lobby lookup more robust by trimming whitespace.
     const trimmedLobbyId = lobbyId.trim();
     const lobby = lobbies[trimmedLobbyId];
 
     if (!lobby) {
-        // Add detailed logging for when a lobby isn't found, which helps debug.
         console.error(`Join failed: Lobby not found. Requested ID: "${trimmedLobbyId}". Available lobbies:`, Object.keys(lobbies));
         return res.status(404).json({ success: false, message: 'Lobby not found.' });
     }
@@ -186,7 +178,6 @@ app.post('/api/lobby/join', (req, res) => {
         return res.status(403).json({ success: false, message: 'Cannot join a game that has already started.' });
     }
 
-    // Add the player to the lobby if they aren't already in it.
     if (!lobby.players.find(p => p.name === username)) {
         lobby.players.push({ name: username });
         writeDb(lobbies);
@@ -195,7 +186,6 @@ app.post('/api/lobby/join', (req, res) => {
     res.json({ success: true, lobbyId: trimmedLobbyId });
 });
 
-// Leave the current lobby
 app.post('/api/lobby/leave', (req, res) => {
     const { lobbyId } = req.body;
     const username = req.cookies.username;
@@ -205,14 +195,11 @@ app.post('/api/lobby/leave', (req, res) => {
     }
 
     const lobby = lobbies[lobbyId];
-    // If the host leaves, the entire lobby is deleted.
     if (lobby.host === username) {
         delete lobbies[lobbyId];
     } else {
-        // Otherwise, just remove the player from the list.
         lobby.players = lobby.players.filter(p => p.name !== username);
         if (lobby.players.length === 0) {
-            // If the last player leaves, delete the lobby.
             delete lobbies[lobbyId];
         }
     }
@@ -221,7 +208,6 @@ app.post('/api/lobby/leave', (req, res) => {
     res.json({ success: true, message: 'You have left the lobby.' });
 });
 
-// Get the current state of a specific lobby (for polling)
 app.get('/api/lobby/:lobbyId', (req, res) => {
     const { lobbyId } = req.params;
     const lobby = lobbies[lobbyId];
@@ -231,7 +217,6 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
         return res.status(404).json({ success: false, message: 'Lobby not found.' });
     }
 
-    // Automatically advance the game state if the timer runs out.
     if (lobby.game === 'imposter' && lobby.gameState === 'discussion' && Date.now() >= lobby.timerEndsAt) {
         lobby.gameState = 'voting';
         writeDb(lobbies);
@@ -239,13 +224,10 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
 
     const isHost = lobby.host === username;
     
-    // Create a personalized version of the lobby state to send to the client.
-    // This ensures players don't see things they shouldn't (like other players' words).
     let personalLobbyState = { ...lobby };
     if (lobby.game === 'imposter' && (lobby.gameState === 'discussion' || lobby.gameState === 'ended')) {
         const me = lobby.players.find(p => p.name === username);
         personalLobbyState.me = me;
-        // Don't reveal roles until the game is over.
         if (lobby.gameState !== 'ended') {
             personalLobbyState.players = lobby.players.map(p => ({ name: p.name }));
         }
@@ -256,7 +238,6 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
 
 // --- GAME SPECIFIC ROUTES ---
 
-// Spin the Bottle game action
 app.post('/api/game/spin-the-bottle', (req, res) => {
     const { lobbyId } = req.body;
     const lobby = lobbies[lobbyId];
@@ -273,7 +254,6 @@ app.post('/api/game/spin-the-bottle', (req, res) => {
     res.json({ success: true, result: lobby.lastResult });
 });
 
-// Get all available word categories for the Imposter game
 app.get('/api/game/imposter/categories', async (req, res) => {
     try {
         const categories = await getCategories();
@@ -283,7 +263,6 @@ app.get('/api/game/imposter/categories', async (req, res) => {
     }
 });
 
-// Update the settings for an Imposter game lobby
 app.post('/api/game/imposter/settings', (req, res) => {
     const { lobbyId, settings } = req.body;
     const lobby = lobbies[lobbyId];
@@ -298,7 +277,6 @@ app.post('/api/game/imposter/settings', (req, res) => {
     res.json({ success: true });
 });
 
-// Start the Imposter game
 app.post('/api/game/imposter/start', async (req, res) => {
     const { lobbyId, settings } = req.body;
     const lobby = lobbies[lobbyId];
@@ -308,7 +286,6 @@ app.post('/api/game/imposter/start', async (req, res) => {
         return res.status(403).json({ success: false, message: 'Only the host can start the game.' });
     }
 
-    // --- Assign Imposter Count ---
     let imposterCount = 0;
     if (settings.imposterCountMode === 'random') {
         const maxImposters = Math.floor(lobby.players.length * (settings.maxImposterPercentage / 100));
@@ -321,7 +298,6 @@ app.post('/api/game/imposter/start', async (req, res) => {
         return res.status(400).json({ success: false, message: 'You must have at least one Normie. Please reduce the number of imposters.' });
     }
     
-    // --- Get Words from DB ---
     let wordPairs = [];
     try {
         wordPairs = await getWordPairs(settings.selectedCategories);
@@ -333,12 +309,10 @@ app.post('/api/game/imposter/start', async (req, res) => {
         return res.status(400).json({ success: false, message: 'No words found for the selected categories. Please select at least one category with words.' });
     }
     
-    // --- Update Lobby State ---
-    lobby.settings = { ...settings, imposterCount }; // Save the final imposter count
+    lobby.settings = { ...settings, imposterCount };
     lobby.votes = {};
     lobby.currentRound = 1;
 
-    // --- Assign Roles and Words ---
     let playersToAssign = [...lobby.players];
     const imposters = [];
     for (let i = 0; i < imposterCount; i++) {
@@ -371,7 +345,6 @@ app.post('/api/game/imposter/start', async (req, res) => {
         });
     }
 
-    // --- Set Starting Player & Timer ---
     lobby.startingPlayer = lobby.players[Math.floor(Math.random() * lobby.players.length)].name;
     lobby.gameState = 'discussion';
     lobby.timerEndsAt = Date.now() + (settings.timer * 1000);
@@ -380,7 +353,6 @@ app.post('/api/game/imposter/start', async (req, res) => {
     res.json({ success: true });
 });
 
-// Process a vote in the Imposter game
 app.post('/api/game/imposter/vote', (req, res) => {
     const { lobbyId, voteFor } = req.body;
     const lobby = lobbies[lobbyId];
@@ -394,14 +366,12 @@ app.post('/api/game/imposter/vote', (req, res) => {
         lobby.votes[username] = [];
     }
 
-    // Only allow one vote per player per round.
     if (lobby.votes[username].length < lobby.currentRound) {
         lobby.votes[username].push(voteFor);
     } else {
         return res.status(400).json({ success: false, message: 'You have already voted in this round.' });
     }
 
-    // Check if everyone has voted in the current round.
     let votesThisRound = 0;
     for (const user in lobby.votes) {
         if (lobby.votes[user].length >= lobby.currentRound) {
@@ -410,11 +380,9 @@ app.post('/api/game/imposter/vote', (req, res) => {
     }
 
     if (votesThisRound >= lobby.players.length) {
-        // If it's the final round, end the game.
         if (lobby.currentRound >= lobby.settings.imposterCount) {
             lobby.gameState = 'ended';
             
-            // Tally all votes from all rounds.
             const voteCounts = {};
             lobby.players.forEach(p => voteCounts[p.name] = 0);
             for (const voter in lobby.votes) {
@@ -426,7 +394,6 @@ app.post('/api/game/imposter/vote', (req, res) => {
             }
             lobby.voteResults = voteCounts;
         } else {
-            // Otherwise, advance to the next voting round.
             lobby.currentRound++;
         }
     }
@@ -435,7 +402,6 @@ app.post('/api/game/imposter/vote', (req, res) => {
     res.json({ success: true });
 });
 
-// Restart the Imposter game with the same players
 app.post('/api/game/imposter/restart', (req, res) => {
     const { lobbyId } = req.body;
     const lobby = lobbies[lobbyId];
@@ -445,7 +411,6 @@ app.post('/api/game/imposter/restart', (req, res) => {
         return res.status(403).json({ success: false, message: 'Only the host can restart the game.' });
     }
 
-    // Reset game-specific state but keep players, host, and game type.
     lobby.gameState = 'setup';
     lobby.votes = {};
     lobby.currentRound = 1;
@@ -461,8 +426,6 @@ app.post('/api/game/imposter/restart', (req, res) => {
     res.json({ success: true });
 });
 
-
-// Start the server
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
