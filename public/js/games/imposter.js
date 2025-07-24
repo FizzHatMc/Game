@@ -1,6 +1,7 @@
 // public/js/games/imposter.js
 
 window.Imposter = (() => {
+    // This self-contained module manages the state and UI for the Imposter game.
     let container;
     let goBackCallback;
     let lobbyId = null;
@@ -8,48 +9,72 @@ window.Imposter = (() => {
     let timerInterval = null;
     let categories = [];
 
+    // A helper function to get translated text.
     const t = window.i18n.t.bind(window.i18n);
 
+    /**
+     * The main render function. It decides which view to show based on the lobby's state.
+     * @param {object} state - The current state of the game lobby.
+     */
     const render = (state) => {
-        if (!container) return;a
+        if (!container) return; // Exit if the game container element isn't set.
+        
         let content = '';
         if (state.lobbyId && state.lobby) {
+            // If we are in a lobby, determine which game screen to show.
             switch (state.lobby.gameState) {
-                case 'setup': content = renderSetup(state); break;
-                case 'discussion': content = renderDiscussion(state); break;
-                case 'voting': content = renderVoting(state); break;
-                case 'ended': content = renderEnded(state); break;
-                default: content = `<p>An error has occurred (Unknown game state: ${state.lobby.gameState}).</p>`;
+                case 'setup':
+                    content = renderSetup(state);
+                    break;
+                case 'discussion':
+                    content = renderDiscussion(state);
+                    break;
+                case 'voting':
+                    content = renderVoting(state);
+                    break;
+                case 'ended':
+                    content = renderEnded(state);
+                    break;
+                default:
+                    // Fallback for any unknown game state.
+                    content = `<p>An error has occurred (Unknown game state: ${state.lobby.gameState}).</p>`;
             }
         } else {
+            // If not in a lobby, show the initial screen to create one.
             content = renderLobbyJoin();
         }
         
+        // Construct the final HTML for the game interface.
         const html = `
             <div class="card">
                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <button id="back-to-selection" class="secondary">${t('backToGames')}</button>
-                    ${state.lobbyId ? `<button id="leave-lobby-btn" class="secondary" style="border-color: #e74c3c; color: #e74c3c;">${t('leaveLobby')}</button>` : ''}
+                    ${state.lobbyId ? `<button id="leave-lobby-btn" class="secondary destructive">${t('leaveLobby')}</button>` : ''}
                 </div>
                 <h2>${t('imposter.title')}</h2>
                 ${content}
             </div>
         `;
         container.innerHTML = html;
+        
+        // Attach all necessary event listeners to the new UI elements.
         addEventListeners(state);
 
-        if (state.lobbyId && state.lobby && state.lobby.gameState === 'discussion') {
-            startTimer(state.lobby.timerEndsAt);
-        }
-        if (state.lobbyId && state.lobby && state.lobby.gameState === 'setup') {
-            new QRCode(document.getElementById("qrcode"), {
-                text: `${window.location.origin}#join=${state.lobbyId}`,
-                width: 128,
-                height: 128,
-            });
+        // Specific actions after rendering, like starting a timer or showing a QR code.
+        if (state.lobbyId && state.lobby) {
+            if (state.lobby.gameState === 'discussion') {
+                startTimer(state.lobby.timerEndsAt);
+            } else if (state.lobby.gameState === 'setup') {
+                new QRCode(document.getElementById("qrcode"), {
+                    text: `${window.location.origin}#join=${state.lobbyId}`,
+                    width: 128,
+                    height: 128,
+                });
+            }
         }
     };
     
+    // Renders the initial screen for a player to create a new lobby.
     const renderLobbyJoin = () => `
         <p>${t('createOrJoin')}</p>
         <div class="input-group">
@@ -57,6 +82,7 @@ window.Imposter = (() => {
         </div>
     `;
 
+    // Renders the setup/lobby screen where the host configures the game.
     const renderSetup = (state) => {
         const { lobby, isHost } = state;
         const settings = lobby.settings || {};
@@ -109,7 +135,7 @@ window.Imposter = (() => {
                         <input type="number" id="imposter-count-fixed" class="${imposterCountMode !== 'fixed' ? 'hidden' : ''}" value="${imposterCount}" min="1" ${!isHost ? 'disabled' : ''}>
                         <div id="imposter-random-container" class="${imposterCountMode !== 'random' ? 'hidden' : ''}">
                            <input type="range" id="imposter-max-percentage" min="10" max="90" value="${maxImposterPercentage}" ${!isHost ? 'disabled' : ''}>
-                           <span>${maxImposterPercentage}%</span>
+                           <span id="percentage-display">${maxImposterPercentage}%</span>
                            <label class="small-text">${t('imposter.maxPercentage')}</label>
                         </div>
                     </div>
@@ -130,10 +156,13 @@ window.Imposter = (() => {
         `;
     };
 
+    // Renders the discussion phase screen, revealing roles and words.
     const renderDiscussion = (state) => {
-        const { lobby, isHost } = state;
-        const me = lobby.players.find(p => p.name === document.cookie.replace(/(?:(?:^|.*;\s*)username\s*\=\s*([^;]*).*$)|^.*$/, "$1"));
-        if (!me) return `<p>Error: Could not find your player data.</p>`;
+        const { lobby } = state;
+        const username = document.cookie.replace(/(?:(?:^|.*;\s*)username\s*\=\s*([^;]*).*$)|^.*$/, "$1");
+        const me = lobby.players.find(p => p.name === username);
+
+        if (!me || !me.role) return `<p>Error: Could not find your player data.</p>`;
 
         return `
             <div class="role-reveal">
@@ -148,40 +177,41 @@ window.Imposter = (() => {
         `;
     };
 
+    // Renders the voting screen.
     const renderVoting = (state) => {
         const { lobby } = state;
         const username = document.cookie.replace(/(?:(?:^|.*;\s*)username\s*\=\s*([^;]*).*$)|^.*$/, "$1");
-        const votesCast = (lobby.votes && lobby.votes[username]) ? lobby.votes[username].length : 0;
-        const totalVotesAllowed = lobby.settings.imposterCount;
+        const myVotes = (lobby.votes && lobby.votes[username]) || [];
 
-        let votingHeader = `<h3>${t('imposter.voteRound')}</h3>`;
-        if (lobby.currentRound > 1) {
-             votingHeader += `<p>${t('imposter.moreImposters')}</p>`;
-        }
-        
-        const votingButtons = lobby.players
-            .map(p => `<button class="vote-btn" data-player-name="${p.name}">${p.name}</button>`)
-            .join('');
-
-        if (votesCast >= totalVotesAllowed) {
+        // Determine if the current player has already voted in this round.
+        if (myVotes.length >= lobby.currentRound) {
             return `
-                <h3>${t('imposter.castYourVote')}</h3>
+                <h3>${t('imposter.voteRound')} ${lobby.currentRound}</h3>
                 <p>${t('imposter.waitingForVotes')}</p>
             `;
         }
 
+        const votingHeader = `<h3>${t('imposter.voteRound')} ${lobby.currentRound}</h3>`;
+        const subHeader = lobby.currentRound > 1 ? `<p>${t('imposter.moreImposters')}</p>` : '';
+        
+        const votingButtons = lobby.players
+            .map(p => `<button class="vote-btn" data-player-name="${p.name}">${p.name}</button>`)
+            .join('');
+        
         return `
             ${votingHeader}
-            <p>${t('imposter.castYourVote')} (${votesCast + 1} / ${totalVotesAllowed})</p>
+            ${subHeader}
+            <p>${t('imposter.castYourVote')}</p>
             <div class="vote-buttons">
                 ${votingButtons}
             </div>
         `;
     };
 
+    // Renders the final game over screen with results.
     const renderEnded = (state) => {
         const { lobby, isHost } = state;
-        const voteEntries = Object.entries(lobby.voteResults || {}).map(([player, count]) => `<li>${player}: ${count} ${t('imposter.votes')}</li>`).join('');
+        const voteEntries = Object.entries(lobby.voteResults || {}).sort(([,a],[,b]) => b-a).map(([player, count]) => `<li>${player}: ${count} ${t('imposter.votes')}</li>`).join('');
         const roleEntries = lobby.players.map(p => `<li>${p.name} - ${t(`imposter.${p.role.toLowerCase()}`)} (${p.word})</li>`).join('');
 
         return `
@@ -200,6 +230,10 @@ window.Imposter = (() => {
         `;
     };
     
+    /**
+     * Attaches event listeners to the interactive elements on the screen.
+     * @param {object} state - The current game state, used to determine which listeners to add.
+     */
     const addEventListeners = (state) => {
         const backBtn = document.getElementById('back-to-selection');
         if (backBtn) backBtn.addEventListener('click', handleGoBack);
@@ -216,8 +250,15 @@ window.Imposter = (() => {
         }
 
         if (state.lobby.gameState === 'setup' && state.isHost) {
-            document.querySelectorAll('.setting-item input, .setting-item select, .category-checkbox').forEach(el => el.addEventListener('change', handleSettingsChange));
-            document.getElementById('imposter-max-percentage')?.addEventListener('input', handleSettingsChange);
+            document.getElementById('imposter-count-mode')?.addEventListener('change', handleSettingsChange);
+            document.getElementById('imposter-count-fixed')?.addEventListener('change', handleSettingsChange);
+            document.getElementById('imposter-max-percentage')?.addEventListener('input', (e) => {
+                document.getElementById('percentage-display').textContent = `${e.target.value}%`;
+            });
+            document.getElementById('imposter-max-percentage')?.addEventListener('change', handleSettingsChange);
+            document.getElementById('timer-duration')?.addEventListener('change', handleSettingsChange);
+            document.getElementById('same-imposter-word')?.addEventListener('change', handleSettingsChange);
+            document.querySelectorAll('.category-checkbox').forEach(cb => cb.addEventListener('change', handleSettingsChange));
             document.getElementById('start-game-btn')?.addEventListener('click', handleStartGame);
         } else if (state.lobby.gameState === 'voting') {
              document.querySelectorAll('.vote-btn').forEach(btn => btn.addEventListener('click', handleVote));
@@ -226,7 +267,8 @@ window.Imposter = (() => {
         }
     };
 
-    const handleGoBack = () => { if (lobbyId) handleLeaveLobby(); else cleanup(); if (goBackCallback) goBackCallback(); };
+    // --- Event Handler Functions ---
+    const handleGoBack = () => { if (lobbyId) { handleLeaveLobby(); } else { cleanup(); if (goBackCallback) goBackCallback(); }};
     const handleLeaveLobby = async () => { sessionStorage.removeItem('activeLobbyId'); await fetch('/api/lobby/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId }), }); cleanup(); if (goBackCallback) goBackCallback(); };
     const handleCreateLobby = async () => { const response = await fetch('/api/lobby/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameType: 'imposter' }) }); const data = await response.json(); if (data.success) { lobbyId = data.lobbyId; sessionStorage.setItem('activeLobbyId', lobbyId); startPolling(); } };
     
@@ -271,6 +313,7 @@ window.Imposter = (() => {
         await fetch('/api/game/imposter/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lobbyId }) });
     };
     
+    // --- Utility Functions ---
     const startTimer = (endTime) => {
         if (timerInterval) clearInterval(timerInterval);
         const timerDisplay = document.getElementById('timer-display');
@@ -314,7 +357,7 @@ window.Imposter = (() => {
         pollInterval = null;
         timerInterval = null;
         lobbyId = null;
-        container.innerHTML = '';
+        if(container) container.innerHTML = '';
     };
     
     const fetchCategories = async () => {
@@ -335,6 +378,12 @@ window.Imposter = (() => {
         pollInterval = setInterval(pollLobbyState, 2000);
     };
 
+    /**
+     * Initializes the game module.
+     * @param {HTMLElement} gameContainer - The DOM element to render the game into.
+     * @param {function} backCallback - A function to call when the user wants to go back to game selection.
+     * @param {string|null} lobbyToJoin - An optional lobby ID to join immediately.
+     */
     const init = async (gameContainer, backCallback, lobbyToJoin = null) => {
         container = gameContainer;
         goBackCallback = backCallback;
@@ -349,9 +398,11 @@ window.Imposter = (() => {
         }
     };
 
+    // Re-render the UI when language changes.
     const refresh = () => {
         pollLobbyState();
     };
 
+    // Expose public methods.
     return { init, cleanup, refresh };
 })();
