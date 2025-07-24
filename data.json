@@ -1,0 +1,6 @@
+{
+  "db_host":"192.168.178.166",
+  "db_user": "remote",
+  "db_password": "MISSING PW",
+  "db_name": "my_app_db"
+}

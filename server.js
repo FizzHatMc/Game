@@ -1,5 +1,5 @@
 // server.js
-// This file sets up the Node.js server using the Express framework.
+// Diese Datei richtet den Node.js-Server mit dem Express-Framework ein.
 
 const express = require('express');
 const cookieParser = require('cookie-parser');
@@ -11,25 +11,38 @@ const mysql = require('mysql');
 const app = express();
 const port = 3000;
 const dbPath = path.join(__dirname, 'db.json');
+const dataPath = path.join(__dirname, 'data.json'); // Pfad zur neuen Konfigurationsdatei
 
-// --- Database Connection (MariaDB) ---
+// --- Lade die Datenbank-Konfiguration aus data.json ---
+let dbConfig;
+try {
+    const data = fs.readFileSync(dataPath);
+    dbConfig = JSON.parse(data);
+    console.log("Datenbank-Konfiguration erfolgreich geladen.");
+} catch (error) {
+    console.error("FEHLER: Konnte data.json nicht lesen oder parsen. Stellen Sie sicher, dass die Datei existiert und korrekten JSON-Code enthält.", error);
+    // Beende den Server, wenn die DB-Konfiguration kritisch ist und fehlt.
+    process.exit(1);
+}
+
+// --- Datenbankverbindung (MariaDB) ---
 const dbConnection = mysql.createConnection({
-    host: '192.168.178.166',
-    user: 'remote',
-    password: '040505', // IMPORTANT: Fill in your database password here
-    database: 'my_app_db' // IMPORTANT: Fill in your database name here
+    host: dbConfig.db_host,
+    user: dbConfig.db_user,
+    password: dbConfig.db_password, // Tragen Sie Ihr Passwort in die data.json ein
+    database: dbConfig.db_name     // Tragen Sie Ihren Datenbanknamen in die data.json ein
 });
 
 dbConnection.connect(err => {
     if (err) {
-        console.error('Error connecting to the database:', err.stack);
+        console.error('Fehler beim Verbinden mit der Datenbank:', err.stack);
         return;
     }
-    console.log('Successfully connected to the database as id ' + dbConnection.threadId);
+    console.log('Erfolgreich mit der Datenbank verbunden als ID ' + dbConnection.threadId);
 });
 
 
-// --- Local JSON "Database" for Lobbies ---
+// --- Lokale JSON-"Datenbank" für Lobbys ---
 const readDb = () => {
     try {
         if (fs.existsSync(dbPath)) {
@@ -39,7 +52,7 @@ const readDb = () => {
         }
         return {};
     } catch (error) {
-        console.error("Error reading database file:", error);
+        console.error("Fehler beim Lesen der Datenbankdatei:", error);
         return {};
     }
 };
@@ -48,24 +61,24 @@ const writeDb = (data) => {
     try {
         fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
     } catch (error) {
-        console.error("Error writing to database file:", error);
+        console.error("Fehler beim Schreiben in die Datenbankdatei:", error);
     }
 };
 
-// --- Wordlist & Category Functions ---
+// --- Wortlisten- & Kategorienfunktionen ---
 const getWordPairs = (categoryIds) => {
     return new Promise((resolve, reject) => {
         if (!categoryIds || categoryIds.length === 0) {
             return resolve([]);
         }
-        
+
         const sql = `
             SELECT
                 n.word AS normie,
                 GROUP_CONCAT(i.word ORDER BY i.id SEPARATOR ',') AS imposters
             FROM
                 normie_words n
-            JOIN
+                    JOIN
                 imposter_words i ON n.id = i.normie_id
             WHERE
                 n.category_id IN (?)
@@ -75,7 +88,7 @@ const getWordPairs = (categoryIds) => {
 
         dbConnection.query(sql, [categoryIds], (error, results) => {
             if (error) {
-                console.error("Error fetching word pairs from DB:", error);
+                console.error("Fehler beim Abrufen der Wortpaare aus der DB:", error);
                 return reject(error);
             }
             const formattedResults = results.map(row => ({
@@ -92,7 +105,7 @@ const getCategories = () => {
         const sql = "SELECT id, name FROM categories ORDER BY name;";
         dbConnection.query(sql, (error, results) => {
             if (error) {
-                 console.error("Error fetching categories from DB:", error);
+                console.error("Fehler beim Abrufen der Kategorien aus der DB:", error);
                 return reject(error);
             }
             resolve(results);
@@ -107,15 +120,15 @@ app.use(express.static('public'));
 app.use(express.json());
 app.use(cookieParser());
 
-// --- API ROUTES ---
+// --- API-ROUTEN ---
 
 app.post('/api/user', (req, res) => {
     const { username } = req.body;
     if (!username || username.trim().length < 3) {
-        return res.status(400).json({ success: false, message: 'Username must be at least 3 characters long.' });
+        return res.status(400).json({ success: false, message: 'Benutzername muss mindestens 3 Zeichen lang sein.' });
     }
     res.cookie('username', username, { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: false });
-    res.json({ success: true, message: 'Username set successfully.' });
+    res.json({ success: true, message: 'Benutzername erfolgreich gesetzt.' });
 });
 
 app.post('/api/lobby/create', (req, res) => {
@@ -124,10 +137,10 @@ app.post('/api/lobby/create', (req, res) => {
     const hostUsername = req.cookies.username;
 
     if (!hostUsername) {
-        return res.status(401).json({ success: false, message: 'Cannot create lobby without a username.' });
+        return res.status(401).json({ success: false, message: 'Lobby kann ohne Benutzernamen nicht erstellt werden.' });
     }
     if (!gameType) {
-        return res.status(400).json({ success: false, message: 'A game type must be specified.' });
+        return res.status(400).json({ success: false, message: 'Ein Spieltyp muss angegeben werden.' });
     }
 
     lobbies[lobbyId] = {
@@ -159,22 +172,22 @@ app.post('/api/lobby/join', (req, res) => {
     const username = req.cookies.username;
 
     if (!lobbyId) {
-        return res.status(400).json({ success: false, message: 'Lobby ID is required.' });
+        return res.status(400).json({ success: false, message: 'Lobby-ID ist erforderlich.' });
     }
-    
+
     const trimmedLobbyId = lobbyId.trim();
     const lobby = lobbies[trimmedLobbyId];
 
     if (!lobby) {
-        console.error(`Join failed: Lobby not found. Requested ID: "${trimmedLobbyId}". Available lobbies:`, Object.keys(lobbies));
-        return res.status(404).json({ success: false, message: 'Lobby not found.' });
+        console.error(`Beitritt fehlgeschlagen: Lobby nicht gefunden. Angeforderte ID: "${trimmedLobbyId}". Verfügbare Lobbys:`, Object.keys(lobbies));
+        return res.status(404).json({ success: false, message: 'Lobby nicht gefunden.' });
     }
     if (!username) {
-        return res.status(401).json({ success: false, message: 'You must set a username first.' });
+        return res.status(401).json({ success: false, message: 'Du musst zuerst einen Benutzernamen festlegen.' });
     }
-    
+
     if (lobby.gameState !== 'setup') {
-        return res.status(403).json({ success: false, message: 'Cannot join a game that has already started.' });
+        return res.status(403).json({ success: false, message: 'Ein bereits gestartetes Spiel kann nicht betreten werden.' });
     }
 
     if (!lobby.players.find(p => p.name === username)) {
@@ -202,9 +215,9 @@ app.post('/api/lobby/leave', (req, res) => {
             delete lobbies[lobbyId];
         }
     }
-    
+
     writeDb(lobbies);
-    res.json({ success: true, message: 'You have left the lobby.' });
+    res.json({ success: true, message: 'Du hast die Lobby verlassen.' });
 });
 
 app.get('/api/lobby/:lobbyId', (req, res) => {
@@ -213,7 +226,7 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
     const username = req.cookies.username;
 
     if (!lobby) {
-        return res.status(404).json({ success: false, message: 'Lobby not found.' });
+        return res.status(404).json({ success: false, message: 'Lobby nicht gefunden.' });
     }
 
     if (lobby.game === 'imposter' && lobby.gameState === 'discussion' && Date.now() >= lobby.timerEndsAt) {
@@ -222,14 +235,12 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
     }
 
     const isHost = lobby.host === username;
-    
+
     let personalLobbyState = { ...lobby };
-    // FIX: Ensure the 'me' object is attached during the voting phase as well.
     if (lobby.game === 'imposter' && (lobby.gameState === 'discussion' || lobby.gameState === 'voting' || lobby.gameState === 'ended')) {
         const me = lobby.players.find(p => p.name === username);
         personalLobbyState.me = me;
         if (lobby.gameState !== 'ended') {
-            // Only reveal names, not roles/words, before the game is over.
             personalLobbyState.players = lobby.players.map(p => ({ name: p.name }));
         }
     }
@@ -237,7 +248,7 @@ app.get('/api/lobby/:lobbyId', (req, res) => {
     res.json({ success: true, lobby: personalLobbyState, isHost });
 });
 
-// --- GAME SPECIFIC ROUTES ---
+// --- SPIELSPEZIFISCHE ROUTEN ---
 
 app.post('/api/game/spin-the-bottle', (req, res) => {
     const { lobbyId } = req.body;
@@ -245,12 +256,12 @@ app.post('/api/game/spin-the-bottle', (req, res) => {
     const username = req.cookies.username;
 
     if (!lobby || lobby.host !== username || lobby.players.length < 2) {
-        return res.status(400).json({ success: false, message: 'Conditions not met to spin.' });
+        return res.status(400).json({ success: false, message: 'Bedingungen zum Drehen nicht erfüllt.' });
     }
 
     const randomIndex = Math.floor(Math.random() * lobby.players.length);
-    lobby.lastResult = `The bottle points to... ${lobby.players[randomIndex].name}!`;
-    
+    lobby.lastResult = `Die Flasche zeigt auf... ${lobby.players[randomIndex].name}!`;
+
     writeDb(lobbies);
     res.json({ success: true, result: lobby.lastResult });
 });
@@ -260,7 +271,7 @@ app.get('/api/game/imposter/categories', async (req, res) => {
         const categories = await getCategories();
         res.json({ success: true, categories });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Failed to fetch categories from the database.' });
+        res.status(500).json({ success: false, message: 'Kategorien konnten nicht von der Datenbank abgerufen werden.' });
     }
 });
 
@@ -270,7 +281,7 @@ app.post('/api/game/imposter/settings', (req, res) => {
     const username = req.cookies.username;
 
     if (!lobby || lobby.host !== username) {
-        return res.status(403).json({ success: false, message: 'Only the host can change settings.' });
+        return res.status(403).json({ success: false, message: 'Nur der Host kann die Einstellungen ändern.' });
     }
 
     lobby.settings = settings;
@@ -284,7 +295,7 @@ app.post('/api/game/imposter/start', async (req, res) => {
     const username = req.cookies.username;
 
     if (!lobby || lobby.host !== username) {
-        return res.status(403).json({ success: false, message: 'Only the host can start the game.' });
+        return res.status(403).json({ success: false, message: 'Nur der Host kann das Spiel starten.' });
     }
 
     let imposterCount = 0;
@@ -296,20 +307,20 @@ app.post('/api/game/imposter/start', async (req, res) => {
     }
 
     if (lobby.players.length <= imposterCount) {
-        return res.status(400).json({ success: false, message: 'You must have at least one Normie. Please reduce the number of imposters.' });
+        return res.status(400).json({ success: false, message: 'Es muss mindestens einen Normalo geben. Bitte reduziere die Anzahl der Imposter.' });
     }
-    
+
     let wordPairs = [];
     try {
         wordPairs = await getWordPairs(settings.selectedCategories);
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Could not fetch words from database.' });
+        return res.status(500).json({ success: false, message: 'Wörter konnten nicht von der Datenbank abgerufen werden.' });
     }
 
     if (wordPairs.length === 0) {
-        return res.status(400).json({ success: false, message: 'No words found for the selected categories. Please select at least one category with words.' });
+        return res.status(400).json({ success: false, message: 'Keine Wörter für die ausgewählten Kategorien gefunden. Bitte wähle mindestens eine Kategorie mit Wörtern aus.' });
     }
-    
+
     lobby.settings = { ...settings, imposterCount };
     lobby.votes = {};
     lobby.currentRound = 1;
@@ -330,13 +341,13 @@ app.post('/api/game/imposter/start', async (req, res) => {
     });
 
     const wordPair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
-    
+
     lobby.players.forEach(player => {
         if (player.role === 'Normie') {
             player.word = wordPair.normie;
         }
     });
-    
+
     if (settings.useSameImposterWord || wordPair.imposters.length === 1) {
         const imposterWord = wordPair.imposters[Math.floor(Math.random() * wordPair.imposters.length)];
         imposters.forEach(imposter => imposter.word = imposterWord);
@@ -349,7 +360,7 @@ app.post('/api/game/imposter/start', async (req, res) => {
     lobby.startingPlayer = lobby.players[Math.floor(Math.random() * lobby.players.length)].name;
     lobby.gameState = 'discussion';
     lobby.timerEndsAt = Date.now() + (settings.timer * 1000);
-    
+
     writeDb(lobbies);
     res.json({ success: true });
 });
@@ -360,7 +371,7 @@ app.post('/api/game/imposter/vote', (req, res) => {
     const username = req.cookies.username;
 
     if (!lobby || !username || lobby.gameState !== 'voting') {
-        return res.status(400).json({ success: false, message: 'Cannot vote at this time.' });
+        return res.status(400).json({ success: false, message: 'Zu diesem Zeitpunkt kann nicht abgestimmt werden.' });
     }
 
     if (!lobby.votes[username]) {
@@ -370,7 +381,7 @@ app.post('/api/game/imposter/vote', (req, res) => {
     if (lobby.votes[username].length < lobby.currentRound) {
         lobby.votes[username].push(voteFor);
     } else {
-        return res.status(400).json({ success: false, message: 'You have already voted in this round.' });
+        return res.status(400).json({ success: false, message: 'Du hast in dieser Runde bereits abgestimmt.' });
     }
 
     let votesThisRound = 0;
@@ -383,7 +394,7 @@ app.post('/api/game/imposter/vote', (req, res) => {
     if (votesThisRound >= lobby.players.length) {
         if (lobby.currentRound >= lobby.settings.imposterCount) {
             lobby.gameState = 'ended';
-            
+
             const voteCounts = {};
             lobby.players.forEach(p => voteCounts[p.name] = 0);
             for (const voter in lobby.votes) {
@@ -409,7 +420,7 @@ app.post('/api/game/imposter/restart', (req, res) => {
     const username = req.cookies.username;
 
     if (!lobby || lobby.host !== username) {
-        return res.status(403).json({ success: false, message: 'Only the host can restart the game.' });
+        return res.status(403).json({ success: false, message: 'Nur der Host kann das Spiel neustarten.' });
     }
 
     lobby.gameState = 'setup';
@@ -428,5 +439,5 @@ app.post('/api/game/imposter/restart', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server läuft auf http://localhost:${port}`);
 });
